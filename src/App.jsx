@@ -2027,12 +2027,10 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
           <div style={{background:"#FFF8E1",border:"1px solid var(--gold)",borderRadius:10,padding:"10px 16px"}}>
             <div style={{fontSize:16,color:"#1A1A2E",fontWeight:900}}>RePoLLa</div>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#1B4F9E"}}>{fmt(totalRePoLLa)}</div>
-            <div style={{fontSize:14,color:"#1A1A2E",fontWeight:700}}>{pagaron.length} × {fmt(valorBase)}</div>
           </div>
           <div style={{background:"rgba(232,64,64,0.12)",border:"1px solid var(--red)",borderRadius:10,padding:"10px 16px"}}>
             <div style={{fontSize:16,color:"#FFFFFF",fontWeight:900}}>🔥 Survivor</div>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#FFFFFF"}}>{fmt(totalSurvivorReal)}</div>
-            <div style={{fontSize:14,color:"#FFFFFF",fontWeight:700}}>{survivorJugadores.length} × {fmt(valorSurvivor)}</div>
           </div>
         </div>
       </div>
