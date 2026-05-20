@@ -2009,13 +2009,18 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
   function getValorTotal(u) {
     return getValorRepolla(u) + (u.survivorEnabled && u.pagoSurvivor ? 200000 : 0);
   }
-  const totalRePoLLa = pagaron.reduce((sum, u) => {
-    const manual = bolsa.pagosManual?.[u.username];
-    const survivor = (u.survivorEnabled && u.pagoSurvivor) ? 200000 : 0;
-    return sum + (manual !== undefined ? Math.max(0, manual - survivor) : getValorRepolla(u));
-  }, 0);
   const survivorJugadores = participants.filter(u => u.survivorEnabled && u.pagoSurvivor && pagos[u.username]);
-  const totalSurvivorReal = survivorJugadores.length * valorSurvivor;
+  // Usar valorPagado real del usuario; restar el survivor para obtener solo la parte RePoLLa
+  const totalRePoLLa = pagaron.reduce((sum, u) => {
+    const valorTotal = u.valorPagado || getValorRepolla(u);
+    const survivor = (u.survivorEnabled && u.pagoSurvivor) ? (valorTotal - getValorRepolla(u)) || 200000 : 0;
+    return sum + (valorTotal - survivor);
+  }, 0);
+  const totalSurvivorReal = survivorJugadores.reduce((sum, u) => {
+    const valorTotal = u.valorPagado || 0;
+    const soloRepolla = getValorRepolla(u);
+    return sum + Math.max(0, valorTotal - soloRepolla);
+  }, 0);
   const totalGeneralReal = totalRePoLLa + totalSurvivorReal;
   const totalGeneral = totalGeneralReal;
 
