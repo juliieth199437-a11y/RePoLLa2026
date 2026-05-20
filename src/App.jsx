@@ -699,7 +699,7 @@ export default function App() {
         {tab==="fase2" && <Fase2Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="fase3" && <Fase3Tab currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} />}
         {tab==="ranking" && <RankingTab leaderboard={leaderboard} currentUser={currentUser} />}
-        {tab==="pronosticos" && <VerPronosticosTab users={users} predictions={predictions} results={results} testMode={testMode} setTestMode={currentUser.isAdmin ? setTestMode : null} />}
+        {tab==="pronosticos" && <VerPronosticosTab users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} testMode={testMode} setTestMode={currentUser.isAdmin ? setTestMode : null} />}
         {tab==="mispuntos" && <MisPuntosTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
@@ -1031,7 +1031,7 @@ function RankingTab({leaderboard, currentUser}) {
 // ============================================================
 // VER PRONÓSTICOS TAB — partido-centric, solo visible tras cierre
 // ============================================================
-function VerPronosticosTab({users, predictions, results, testMode, setTestMode}) {
+function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, testMode, setTestMode}) {
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
   const participants=users.filter(u=>!u.isAdmin);
@@ -1155,6 +1155,51 @@ function VerPronosticosTab({users, predictions, results, testMode, setTestMode})
     </div>
   );
 }
+
+      {/* TABLA B — Clasificación de grupos */}
+      {!selectedMatch && phase==="grupos" && groupPicks && (
+        <div style={{marginTop:20}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)",marginBottom:10}}>📊 Pronósticos Tabla B — Clasificación de Grupos</div>
+          {participants.map(u => {
+            const picks = groupPicks[u.username];
+            if (!picks || Object.keys(picks).length===0) return null;
+            return (
+              <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border)"}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>{u.apodo||u.name}</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6}}>
+                  {Object.entries(picks).map(([group,pick]) => (
+                    <div key={group} style={{fontSize:13,background:"rgba(27,79,158,0.06)",borderRadius:8,padding:"4px 8px"}}>
+                      <span style={{fontWeight:700}}>Grupo {group}:</span> 1°{pick.first} / 2°{pick.second}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* FASE 3 — Campeón */}
+      {!selectedMatch && phase==="grupos" && finalPicks && (
+        <div style={{marginTop:20}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)",marginBottom:10}}>🏆 Pronósticos Fase 3 — Campeón</div>
+          {participants.map(u => {
+            const fp = finalPicks[u.username];
+            if (!fp || !fp.champion) return null;
+            return (
+              <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border)"}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{u.apodo||u.name}</div>
+                <div style={{fontSize:13,display:"flex",gap:12,flexWrap:"wrap"}}>
+                  <span>🥇 {fp.champion}</span>
+                  <span>🥈 {fp.runnerUp}</span>
+                  <span>🥉 {fp.third}</span>
+                  <span>4° {fp.fourth}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
 // ============================================================
 // MIS PUNTOS TAB
