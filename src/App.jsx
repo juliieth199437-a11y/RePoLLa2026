@@ -611,6 +611,20 @@ export default function App() {
     } catch(e) { console.error("Error creando usuario:", e); }
   }
 
+  async function updateUser(username, fields) {
+    setUsers(prev => prev.map(u => u.username===username ? {...u, ...fields} : u));
+    if (currentUser.username===username) setCurrentUser(prev => ({...prev, ...fields}));
+    try {
+      const dbFields = {};
+      if (fields.phone !== undefined) dbFields.phone = fields.phone;
+      if (fields.email !== undefined) dbFields.email = fields.email;
+      if (fields.city !== undefined) dbFields.city = fields.city;
+      if (fields.apodo !== undefined) dbFields.apodo = fields.apodo;
+      if (Object.keys(dbFields).length > 0)
+        await sb.from("users").update(dbFields).eq("username", username);
+    } catch(e) { console.error("Error actualizando perfil:", e); }
+  }
+
   async function changePassword(username, newPassword) {
     setUsers(prev => prev.map(u => u.username===username ? {...u, password:newPassword, mustChangePassword:false} : u));
     if (currentUser.username===username) setCurrentUser(prev => ({...prev, password:newPassword, mustChangePassword:false}));
@@ -650,6 +664,7 @@ export default function App() {
     {key:"mispuntos", label:"📊 Mis Puntos"},
     ...(currentUser.survivorEnabled ? [{key:"survivor", label:"🔥 Survivor"}] : []),
     {key:"bolsa", label:"💰 Bolsa"},
+    {key:"miperfil", label:"👤 Mi Perfil"},
   ];
 
   return (
@@ -661,8 +676,8 @@ export default function App() {
           RePoLLa 2026
         </div>
         <div className="header-user">
-          <div className="avatar" style={{background:avatarColor(currentUser.name)}}>{initials(currentUser.name)}</div>
-          <span style={{fontSize:15,fontWeight:700,color:"#FFFFFF"}}>{currentUser.name}</span>
+          <div className="avatar" style={{background:avatarColor(currentUser.apodo||currentUser.name)}}>{initials(currentUser.apodo||currentUser.name)}</div>
+          <span style={{fontSize:15,fontWeight:700,color:"#FFFFFF"}}>{currentUser.apodo||currentUser.name}</span>
           <button className="btn-logout" onClick={()=>{setCurrentUser(null);setTab("hoy")}}>Salir</button>
         </div>
       </header>
@@ -682,6 +697,7 @@ export default function App() {
         {tab==="pronosticos" && <VerPronosticosTab users={users} predictions={predictions} results={results} testMode={testMode} setTestMode={currentUser.isAdmin ? setTestMode : null} />}
         {tab==="mispuntos" && <MisPuntosTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
+        {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} />}
       </div>
     </div>
@@ -997,8 +1013,8 @@ function RankingTab({leaderboard, currentUser}) {
         {leaderboard.map((u,i)=>(
           <div key={u.username} className="lb-row" style={u.username===currentUser.username?{borderColor:"#1B4F9E"}:{}}>
             <div className={`lb-pos ${i===0?"p1":i===1?"p2":i===2?"p3":""}`}>{i+1}</div>
-            <div className="avatar" style={{background:avatarColor(u.name)}}>{initials(u.name)}</div>
-            <div style={{flex:1,fontWeight:600,fontSize:16}}>{u.name}{u.username===currentUser.username&&<span style={{fontSize:14,color:"#1B4F9E",marginLeft:6}}>← Tú</span>}</div>
+            <div className="avatar" style={{background:avatarColor(u.apodo||u.name)}}>{initials(u.apodo||u.name)}</div>
+            <div style={{flex:1,fontWeight:600,fontSize:16}}>{u.apodo||u.name}{u.username===currentUser.username&&<span style={{fontSize:14,color:"#1B4F9E",marginLeft:6}}>← Tú</span>}</div>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#1B4F9E"}}>{u.score}<span style={{fontSize:14,color:"#6B7A99",fontFamily:"inherit",marginLeft:3}}>pts</span></div>
           </div>
         ))}
@@ -1116,8 +1132,8 @@ function VerPronosticosTab({users, predictions, results, testMode, setTestMode})
               return (
                 <div key={u.username} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 16px",background:"#F8F9FC",borderRadius:12,
                   border:`1px solid ${pts===null?"var(--border)":pts>0?"var(--green)":res?"var(--red)":"var(--border)"}`}}>
-                  <div className="avatar" style={{background:avatarColor(u.name),width:36,height:36,fontSize:15}}>{initials(u.name)}</div>
-                  <div style={{flex:1,fontWeight:600,fontSize:15}}>{u.name}</div>
+                  <div className="avatar" style={{background:avatarColor(u.apodo||u.name),width:36,height:36,fontSize:15}}>{initials(u.apodo||u.name)}</div>
+                  <div style={{flex:1,fontWeight:600,fontSize:15}}>{u.apodo||u.name}</div>
                   <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:pts===null?"#1B4F9E":pts>0?"var(--green)":res?"var(--red)":"#1B4F9E"}}>
                     {pred?`${pred.homeGoals} - ${pred.awayGoals}`:<span style={{color:"#B0B8CC",fontSize:15,fontStyle:"italic"}}>Sin pronóstico</span>}
                   </div>
@@ -1596,7 +1612,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           {users.filter(u=>!u.isAdmin).map((u,i)=>(
             <div key={u.username} className="lb-row">
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#6B7A99",minWidth:28}}>{i+1}</div>
-              <div className="avatar" style={{background:avatarColor(u.name),width:34,height:34,fontSize:14}}>{initials(u.name)}</div>
+              <div className="avatar" style={{background:avatarColor(u.apodo||u.name),width:34,height:34,fontSize:14}}>{initials(u.apodo||u.name)}</div>
               <div style={{flex:1}}>
                 <div style={{fontSize:15,fontWeight:600}}>
                   {u.name} {u.apodo && <span style={{fontSize:14,color:"#6B7A99"}}>"{u.apodo}"</span>}
@@ -1888,12 +1904,12 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
                 border:`1px solid ${u.username===currentUser.username?"var(--gold)":alive?"var(--border)":"var(--red)"}`,
                 opacity:alive?1:0.55
               }}>
-                <div style={{width:36,height:36,borderRadius:"50%",background:avatarColor(u.name),
+                <div style={{width:36,height:36,borderRadius:"50%",background:avatarColor(u.apodo||u.name),
                   display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:15,flexShrink:0}}>
-                  {initials(u.name)}
+                  {initials(u.apodo||u.name)}
                 </div>
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:600,fontSize:15}}>{u.name}</div>
+                  <div style={{fontWeight:600,fontSize:15}}>{u.apodo||u.name}</div>
                   <div style={{fontSize:14,color:"#6B7A99",marginTop:2}}>
                     {todayPick
                       ? <span><FlagImg team={todayPick.team} size={14}/> {todayPick.team} hoy</span>
@@ -1940,7 +1956,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
                 const pick = survivorPicks[u.username][date];
                 return (
                   <div key={u.username} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap",padding:"8px 10px",background:"#FFFFFF",borderRadius:8}}>
-                    <span style={{fontSize:15,fontWeight:700,minWidth:120}}>{u.name}</span>
+                    <span style={{fontSize:15,fontWeight:700,minWidth:120}}>{u.apodo||u.name}</span>
                     <span style={{fontSize:15,color:"#6B7A99",display:"flex",alignItems:"center",gap:4}}>
                       <FlagImg team={pick.team} size={16}/> {pick.team}
                     </span>
@@ -2124,12 +2140,12 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                   border:`2px solid ${paid?"#2D8A3E":"#E0E6F0"}`,
                   borderRadius:12, transition:"all 0.2s",
                   boxShadow:"0 2px 6px rgba(0,0,0,0.04)"}}>
-                <div style={{width:36,height:36,borderRadius:"50%",background:avatarColor(u.name),
+                <div style={{width:36,height:36,borderRadius:"50%",background:avatarColor(u.apodo||u.name),
                   display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:15,flexShrink:0}}>
-                  {initials(u.name)}
+                  {initials(u.apodo||u.name)}
                 </div>
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:600,fontSize:15,color:"#1A1A2E"}}>{u.name}</div>
+                  <div style={{fontWeight:600,fontSize:15,color:"#1A1A2E"}}>{u.apodo||u.name}</div>
                   <div style={{fontSize:13,color:"#6B7A99",marginTop:2}}>
                     {u.tipo==="repollo"?"🥬 RePoLLo":"🆕 NueVón"}
                     {u.survivorEnabled?" · 🔥 Survivor":""}
@@ -2212,7 +2228,7 @@ function ChangePasswordScreen({currentUser, changePassword}) {
           <div style={{fontFamily:"'Montserrat',sans-serif",fontWeight:900,fontSize:24,
             color:"#1B4F9E",marginBottom:6}}>Cambia tu contraseña</div>
           <div style={{fontSize:15,color:"#6B7A99"}}>
-            Hola <strong>{currentUser.name}</strong>, es tu primer ingreso.<br/>
+            Hola <strong>{currentUser.apodo||currentUser.name}</strong>, es tu primer ingreso.<br/>
             Por seguridad debes crear una contraseña personal.
           </div>
         </div>
@@ -2238,6 +2254,129 @@ function ChangePasswordScreen({currentUser, changePassword}) {
             <div style={{fontSize:18,fontWeight:700,color:"#2D8A3E",marginBottom:8}}>¡Contraseña guardada!</div>
             <div style={{fontSize:15,color:"#6B7A99",marginBottom:20}}>Ya puedes ingresar a la app.</div>
             <button className="btn-primary" onClick={()=>window.location.reload()}>Entrar a RePoLLa</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// MI PERFIL
+// ============================================================
+function MiPerfilTab({currentUser, updateUser}) {
+  const [form, setForm] = React.useState({
+    apodo: currentUser.apodo||"",
+    email: currentUser.email||"",
+    phone: currentUser.phone||"",
+    city: currentUser.city||"",
+  });
+  const [saved, setSaved] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+
+  function handleSave() {
+    updateUser(currentUser.username, form);
+    setSaved(true);
+    setEditing(false);
+    setTimeout(()=>setSaved(false), 3000);
+  }
+
+  const fieldStyle = {
+    width:"100%", padding:"10px 12px", borderRadius:8,
+    border:"1px solid var(--border)", background:"var(--card)",
+    color:"var(--text)", fontSize:15, fontFamily:"inherit",
+    boxSizing:"border-box"
+  };
+  const labelStyle = {fontSize:13, fontWeight:700, color:"var(--muted)", marginBottom:4, display:"block"};
+
+  return (
+    <div style={{maxWidth:480, margin:"0 auto", padding:"0 4px"}}>
+      <div style={{background:"var(--card)", borderRadius:14, padding:24, marginBottom:16, border:"1px solid var(--border)"}}>
+        <div style={{display:"flex", alignItems:"center", gap:16, marginBottom:20}}>
+          <div style={{width:60, height:60, borderRadius:"50%", background:"var(--blue)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:24, fontWeight:900, color:"#fff"}}>
+            {(currentUser.apodo||currentUser.name||"?")[0].toUpperCase()}
+          </div>
+          <div>
+            <div style={{fontSize:20, fontWeight:900, color:"var(--text)"}}>{currentUser.apodo||currentUser.name}</div>
+            <div style={{fontSize:13, color:"var(--muted)"}}>@{currentUser.username}</div>
+            <div style={{fontSize:12, marginTop:2}}>
+              <span style={{background: currentUser.tipo==="repollo"?"#1B4F9E":"#2D8A3E",
+                color:"#fff", borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700}}>
+                {currentUser.tipo==="repollo"?"🥬 RePoLLo":"🆕 NueVón"}
+              </span>
+              {currentUser.survivorEnabled && <span style={{background:"#C41E3A", color:"#fff",
+                borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700, marginLeft:6}}>
+                🔥 Survivor
+              </span>}
+            </div>
+          </div>
+        </div>
+
+        {!editing ? (
+          <>
+            <div style={{display:"grid", gap:12, marginBottom:20}}>
+              {[
+                {label:"Apodo", value:form.apodo, icon:"🎯"},
+                {label:"Email", value:form.email, icon:"📧"},
+                {label:"Celular (WhatsApp)", value:form.phone, icon:"📱"},
+                {label:"Ciudad", value:form.city, icon:"🏙️"},
+              ].map(f => (
+                <div key={f.label} style={{display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                  background:"rgba(27,79,158,0.06)", borderRadius:10}}>
+                  <span style={{fontSize:20}}>{f.icon}</span>
+                  <div>
+                    <div style={{fontSize:11, color:"var(--muted)", fontWeight:700}}>{f.label}</div>
+                    <div style={{fontSize:15, fontWeight:600, color:"var(--text)"}}>{f.value||<span style={{color:"var(--muted)",fontStyle:"italic"}}>Sin datos</span>}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button className="btn-primary" onClick={()=>setEditing(true)} style={{width:"100%"}}>
+              ✏️ Editar mi información
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{display:"grid", gap:14, marginBottom:20}}>
+              <div>
+                <label style={labelStyle}>🎯 Apodo</label>
+                <input style={fieldStyle} value={form.apodo}
+                  onChange={e=>setForm(f=>({...f, apodo:e.target.value}))} />
+              </div>
+              <div>
+                <label style={labelStyle}>📧 Email</label>
+                <input style={fieldStyle} type="email" value={form.email}
+                  onChange={e=>setForm(f=>({...f, email:e.target.value}))} />
+              </div>
+              <div>
+                <label style={labelStyle}>📱 Celular (WhatsApp)</label>
+                <input style={fieldStyle} type="tel" value={form.phone}
+                  onChange={e=>setForm(f=>({...f, phone:e.target.value}))} />
+              </div>
+              <div>
+                <label style={labelStyle}>🏙️ Ciudad</label>
+                <input style={fieldStyle} value={form.city}
+                  onChange={e=>setForm(f=>({...f, city:e.target.value}))} />
+              </div>
+            </div>
+            <div style={{display:"flex", gap:10}}>
+              <button className="btn-primary" onClick={handleSave} style={{flex:1}}>
+                💾 Guardar cambios
+              </button>
+              <button onClick={()=>setEditing(false)} style={{flex:1, padding:"10px 0",
+                borderRadius:8, border:"1px solid var(--border)", background:"transparent",
+                color:"var(--muted)", cursor:"pointer", fontSize:15, fontFamily:"inherit"}}>
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+        {saved && (
+          <div style={{marginTop:12, padding:"10px 14px", background:"rgba(45,138,62,0.12)",
+            borderRadius:8, color:"#2D8A3E", fontWeight:700, fontSize:15, textAlign:"center"}}>
+            ✅ ¡Perfil actualizado!
           </div>
         )}
       </div>
