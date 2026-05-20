@@ -1197,8 +1197,6 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
           })}
         </div>
       )}
-
-// ============================================================
     </div>
   );
 }
