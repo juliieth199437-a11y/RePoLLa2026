@@ -501,7 +501,12 @@ export default function App() {
         const { data: pagos } = await sb.from("pagos").select("*");
         if (pagos) {
           const pagosMap = {};
-          pagos.forEach(p => { pagosMap[p.username] = {repolla: p.pago_repolla, survivor: p.pago_survivor}; });
+          pagos.forEach(p => { pagosMap[p.username] = {
+            repolla: p.pago_repolla,
+            survivor: p.pago_survivor,
+            valorRepolla: p.valor_repolla || 0,
+            valorSurvivor: p.valor_survivor || 0,
+          }; });
           setBolsa({valorBase: 50000, pagos: pagosMap});
         }
 
@@ -2010,16 +2015,13 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
     return getValorRepolla(u) + (u.survivorEnabled && u.pagoSurvivor ? 200000 : 0);
   }
   const survivorJugadores = participants.filter(u => u.survivorEnabled && u.pagoSurvivor && pagos[u.username]);
-  // Usar valorPagado real del usuario; restar el survivor para obtener solo la parte RePoLLa
   const totalRePoLLa = pagaron.reduce((sum, u) => {
-    const valorTotal = u.valorPagado || getValorRepolla(u);
-    const survivor = (u.survivorEnabled && u.pagoSurvivor) ? (valorTotal - getValorRepolla(u)) || 200000 : 0;
-    return sum + (valorTotal - survivor);
+    const p = pagos[u.username];
+    return sum + (p?.valorRepolla || getValorRepolla(u));
   }, 0);
   const totalSurvivorReal = survivorJugadores.reduce((sum, u) => {
-    const valorTotal = u.valorPagado || 0;
-    const soloRepolla = getValorRepolla(u);
-    return sum + Math.max(0, valorTotal - soloRepolla);
+    const p = pagos[u.username];
+    return sum + (p?.valorSurvivor || 200000);
   }, 0);
   const totalGeneralReal = totalRePoLLa + totalSurvivorReal;
   const totalGeneral = totalGeneralReal;
