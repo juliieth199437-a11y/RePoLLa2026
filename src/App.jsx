@@ -1152,9 +1152,6 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
           </div>
         </div>
       )}
-    </div>
-  );
-}
 
       {/* TABLA B — Clasificación de grupos */}
       {!selectedMatch && phase==="grupos" && groupPicks && (
@@ -1202,6 +1199,10 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
       )}
 
 // ============================================================
+    </div>
+  );
+}
+
 // MIS PUNTOS TAB
 // ============================================================
 function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults}) {
