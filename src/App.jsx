@@ -1247,7 +1247,6 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
         <button onClick={exportarExcel} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--green)",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",background:"rgba(45,138,62,0.1)",color:"var(--green)"}}>
           📊 Exportar Excel
         </button>
-        </div>
         {setTestMode && (
           <button onClick={()=>setTestMode(t=>!t)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
             background:testMode?"#2a1a00":"transparent",borderColor:testMode?"var(--gold)":"var(--border)",color:testMode?"var(--gold)":"var(--muted)"}}>
