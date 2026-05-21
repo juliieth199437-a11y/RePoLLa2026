@@ -475,6 +475,21 @@ export default function App() {
           setGroupPicks(mapped);
         }
 
+        // Pronósticos finales (Fase 3)
+        const { data: fp } = await sb.from("pronosticos_finales").select("*");
+        if (fp) {
+          const mapped = {};
+          fp.forEach(p => {
+            mapped[p.username] = {
+              champion: p.champion||null,
+              runnerUp: p.runner_up||null,
+              third: p.third||null,
+              fourth: p.fourth||null,
+            };
+          });
+          setFinalPicks(mapped);
+        }
+
         // Resultados
         const { data: res } = await sb.from("results").select("*");
         if (res) {
@@ -579,6 +594,15 @@ export default function App() {
   async function saveFinalPick(picks) {
     const username = currentUser.username;
     setFinalPicks(prev => ({...prev, [username]: picks}));
+    try {
+      await sb.from("pronosticos_finales").upsert({
+        username,
+        champion: picks.champion||null,
+        runner_up: picks.runnerUp||null,
+        third: picks.third||null,
+        fourth: picks.fourth||null,
+      },{onConflict:"username"});
+    } catch(e) { console.error("Error guardando pronóstico final:", e); }
   }
 
   async function saveResult(matchId, homeGoals, awayGoals, penaltyWinner) {
