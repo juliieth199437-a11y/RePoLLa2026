@@ -1158,6 +1158,76 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
     {key:"tercer",label:"3er Puesto",fase:2},
     {key:"final",label:"Final",fase:2},
   ];
+
+  function exportarExcel() {
+    const rows = [];
+    // Encabezado
+    rows.push(["Jugador","Apodo","Fase","Partido","Fecha","Pronóstico Local","Pronóstico Visitante","Penales (pronóstico)","Resultado Local","Resultado Visitante","¿Acertó marcador?","¿Acertó ganador?","Puntos"]);
+
+    // Partidos
+    participants.forEach(u => {
+      const preds = predictions[u.username] || {};
+      ALL_MATCHES.forEach(m => {
+        const pred = preds[m.id];
+        if (!pred) return;
+        const res = results[m.id];
+        let acertoMarcador = "", acertoGanador = "", pts = "";
+        if (res) {
+          acertoMarcador = (pred.homeGoals===res.homeGoals && pred.awayGoals===res.awayGoals) ? "SÍ" : "NO";
+          const predGanador = pred.homeGoals>pred.awayGoals?"local":pred.homeGoals<pred.awayGoals?"visitante":"empate";
+          const resGanador = res.homeGoals>res.awayGoals?"local":res.homeGoals<res.awayGoals?"visitante":"empate";
+          acertoGanador = predGanador===resGanador ? "SÍ" : "NO";
+          pts = calcMatchScore(m.id, pred, res);
+        }
+        rows.push([
+          u.name, u.apodo||u.name, m.fase===1?"Grupos":"Eliminatorias",
+          `${m.home} vs ${m.away}`, m.date,
+          pred.homeGoals, pred.awayGoals, pred.penaltyWinner||"",
+          res?res.homeGoals:"", res?res.awayGoals:"",
+          acertoMarcador, acertoGanador, pts
+        ]);
+      });
+    });
+
+    // Tabla B
+    rows.push([]);
+    rows.push(["TABLA B — CLASIFICACIÓN DE GRUPOS"]);
+    rows.push(["Jugador","Apodo","Grupo","1° Pronosticado","2° Pronosticado","1° Real","2° Real","Puntos"]);
+    participants.forEach(u => {
+      const picks = groupPicks[u.username] || {};
+      Object.entries(picks).forEach(([group, pick]) => {
+        const res = groupResults[group];
+        let pts = "";
+        if (res) {
+          if (pick.first===res.first && pick.second===res.second) pts=4;
+          else if (pick.first===res.second && pick.second===res.first) pts=2;
+          else if ([pick.first,pick.second].includes(res.first) || [pick.first,pick.second].includes(res.second)) pts=1;
+          else pts=0;
+        }
+        rows.push([u.name, u.apodo||u.name, `Grupo ${group}`, pick.first, pick.second, res?res.first:"", res?res.second:"", pts]);
+      });
+    });
+
+    // Fase 3
+    rows.push([]);
+    rows.push(["FASE 3 — PODIO FINAL"]);
+    rows.push(["Jugador","Apodo","Campeón","Subcampeón","3er Puesto","4° Lugar","Puntos"]);
+    participants.forEach(u => {
+      const fp = finalPicks[u.username];
+      if (!fp || !fp.champion) return;
+      rows.push([u.name, u.apodo||u.name, fp.champion, fp.runnerUp||"", fp.third||"", fp.fourth||"", ""]);
+    });
+
+    // Convertir a CSV
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `RePoLLa_Pronosticos_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   const matches = ALL_MATCHES.filter(m=>m.phase===phase && isMatchVisible(m, testMode));
 
   function getScore(matchId, username) {
@@ -1173,6 +1243,10 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
         <div className="alert alert-info" style={{margin:0,flex:1}}>
           🔒 Los pronósticos solo son visibles <strong>después del cierre</strong> de cada partido.
+        </div>
+        <button onClick={exportarExcel} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--green)",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",background:"rgba(45,138,62,0.1)",color:"var(--green)"}}>
+          📊 Exportar Excel
+        </button>
         </div>
         {setTestMode && (
           <button onClick={()=>setTestMode(t=>!t)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
