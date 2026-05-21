@@ -531,7 +531,7 @@ export default function App() {
           const mapped = {};
           sp.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
-            mapped[p.username][p.match_id] = p.pick;
+            mapped[p.username][p.date] = { team: p.team, failed: p.failed, result: p.result };
           });
           setSurvivorPicks(mapped);
         }
@@ -1892,7 +1892,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
   const [selectedTeam, setSelectedTeam] = useState("");
   const [saved, setSaved] = useState(false);
 
-  function savePick() {
+  async function savePick() {
     if (!selectedTeam) return;
     if (EXCLUDED_SURVIVOR.includes(today)) return;
     setSurvivorPicks(prev => ({
@@ -1902,13 +1902,22 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
         [today]: { team: selectedTeam, failed: false, result: null }
       }
     }));
+    try {
+      await sb.from("survivor_picks").upsert({
+        username: currentUser.username,
+        date: today,
+        team: selectedTeam,
+        failed: false,
+        result: null
+      }, {onConflict: "username,date"});
+    } catch(e) { console.error("Error guardando survivor pick:", e); }
     setSaved(true);
     setSelectedTeam("");
     setTimeout(() => setSaved(false), 2500);
   }
 
   // ── Admin: mark result for a pick ───────────────────────────
-  function markResult(username, date, result) {
+  async function markResult(username, date, result) {
     const pick = survivorPicks[username]?.[date];
     if (!pick) return;
     const isDay1 = isJornada1(date);
@@ -1921,6 +1930,15 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
         [date]: { ...pick, result, failed }
       }
     }));
+    try {
+      await sb.from("survivor_picks").upsert({
+        username,
+        date,
+        team: pick.team,
+        failed,
+        result
+      }, {onConflict: "username,date"});
+    } catch(e) { console.error("Error guardando resultado survivor:", e); }
   }
 
   const survivors = survivorUsers.filter(u => isUserAlive(u.username));
