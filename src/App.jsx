@@ -722,7 +722,7 @@ export default function App() {
         {tab==="fase1" && <Fase1Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} testMode={testMode} />}
         {tab==="fase2" && <Fase2Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="fase3" && <Fase3Tab currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} />}
-        {tab==="ranking" && <RankingTab leaderboard={leaderboard} currentUser={currentUser} />}
+        {tab==="ranking" && <RankingTab leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="pronosticos" && <VerPronosticosTab users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} testMode={testMode} setTestMode={currentUser.isAdmin ? setTestMode : null} />}
         {tab==="mispuntos" && <MisPuntosTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
@@ -1026,9 +1026,98 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
 // ============================================================
 // RANKING TAB
 // ============================================================
-function RankingTab({leaderboard, currentUser}) {
+function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults}) {
+  const [selected, setSelected] = React.useState(null);
   const me = leaderboard.find(u=>u.username===currentUser.username);
   const myPos = leaderboard.indexOf(me)+1;
+
+  if (selected) {
+    const u = leaderboard.find(x=>x.username===selected);
+    const preds = predictions[selected]||{};
+    const gPicks = groupPicks[selected]||{};
+    const fPicks = finalPicks[selected]||{};
+    const matchesWithPred = ALL_MATCHES.filter(m => preds[m.id]);
+    return (
+      <div>
+        <button onClick={()=>setSelected(null)} style={{marginBottom:14,padding:"7px 14px",borderRadius:8,border:"1px solid var(--border)",background:"transparent",color:"var(--text)",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>
+          ← Volver al ranking
+        </button>
+        <div style={{background:"var(--card)",borderRadius:12,padding:"14px 16px",marginBottom:14,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:12}}>
+          <div className="avatar" style={{background:avatarColor(u.apodo||u.name),width:48,height:48,fontSize:20}}>{initials(u.apodo||u.name)}</div>
+          <div>
+            <div style={{fontWeight:900,fontSize:18}}>{u.apodo||u.name}</div>
+            <div style={{fontSize:13,color:"var(--muted)"}}>@{u.username} · {u.tipo==="repollo"?"🥬 RePoLLo":"🆕 NueVón"}</div>
+          </div>
+          <div style={{marginLeft:"auto",fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"var(--blue)"}}>{u.score}<span style={{fontSize:14,marginLeft:3}}>pts</span></div>
+        </div>
+
+        {/* Partidos */}
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>⚽ Pronósticos de Partidos</div>
+        {matchesWithPred.length===0 && <div style={{color:"var(--muted)",fontSize:14,marginBottom:12}}>Sin pronósticos registrados</div>}
+        {matchesWithPred.map(m => {
+          const pred = preds[m.id];
+          const res = results[m.id];
+          let pts = null;
+          if (pred && res) pts = calcMatchScore(m.id, pred, res);
+          return (
+            <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:700}}>{m.home} vs {m.away}</div>
+                <div style={{fontSize:12,color:"var(--muted)"}}>{m.date} · {m.phase}</div>
+              </div>
+              <div style={{fontSize:14,fontWeight:700,color:"var(--blue)"}}>
+                Pronóstico: {pred.homeGoals}-{pred.awayGoals}{pred.penaltyWinner?` (pen: ${pred.penaltyWinner})`:""}
+              </div>
+              {res && <div style={{fontSize:13,color:"var(--muted)"}}>Real: {res.homeGoals}-{res.awayGoals}</div>}
+              {pts!==null && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:pts>0?"var(--green)":"var(--red)",minWidth:40,textAlign:"right"}}>{pts>0?`+${pts}`:0}</div>}
+              {!res && <div style={{fontSize:12,color:"var(--muted)"}}>Enviado</div>}
+            </div>
+          );
+        })}
+
+        {/* Tabla B */}
+        {Object.keys(gPicks).length>0 && (
+          <div style={{marginTop:14}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>📊 Clasificación de Grupos</div>
+            <div style={{background:"var(--card)",borderRadius:10,padding:"12px 14px",border:"1px solid var(--border)",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
+              {Object.entries(gPicks).map(([group,pick])=>{
+                const res = groupResults[group];
+                let pts = 0;
+                if (res) {
+                  if (pick.first===res.first && pick.second===res.second) pts=4;
+                  else if (pick.first===res.second && pick.second===res.first) pts=2;
+                  else if (pick.first===res.first || pick.second===res.second || pick.first===res.second || pick.second===res.first) pts=1;
+                }
+                return (
+                  <div key={group} style={{fontSize:13,background:"rgba(27,79,158,0.06)",borderRadius:8,padding:"6px 10px"}}>
+                    <div style={{fontWeight:700}}>Grupo {group}</div>
+                    <div>1° {pick.first}</div>
+                    <div>2° {pick.second}</div>
+                    {res && <div style={{color:pts>0?"var(--green)":"var(--red)",fontWeight:700,marginTop:2}}>+{pts}pts</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Fase 3 */}
+        {fPicks.champion && (
+          <div style={{marginTop:14}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>🏆 Pronóstico Final</div>
+            <div style={{background:"var(--card)",borderRadius:10,padding:"12px 14px",border:"1px solid var(--border)",display:"flex",gap:16,flexWrap:"wrap"}}>
+              {[["🥇 Campeón","champion"],["🥈 Subcampeón","runnerUp"],["🥉 3er Puesto","third"],["4° Lugar","fourth"]].map(([label,key])=>(
+                <div key={key} style={{fontSize:14}}>
+                  <span style={{fontWeight:700}}>{label}:</span> {fPicks[key]||"—"}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       {!currentUser.isAdmin && me && (
@@ -1040,11 +1129,13 @@ function RankingTab({leaderboard, currentUser}) {
       )}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {leaderboard.map((u,i)=>(
-          <div key={u.username} className="lb-row" style={u.username===currentUser.username?{borderColor:"#1B4F9E"}:{}}>
+          <div key={u.username} className="lb-row" style={{cursor:currentUser.isAdmin?"pointer":"default",...(u.username===currentUser.username?{borderColor:"#1B4F9E"}:{})}}
+            onClick={()=>currentUser.isAdmin && setSelected(u.username)}>
             <div className={`lb-pos ${i===0?"p1":i===1?"p2":i===2?"p3":""}`}>{i+1}</div>
             <div className="avatar" style={{background:avatarColor(u.apodo||u.name)}}>{initials(u.apodo||u.name)}</div>
             <div style={{flex:1,fontWeight:600,fontSize:16}}>{u.apodo||u.name}{u.username===currentUser.username&&<span style={{fontSize:14,color:"#1B4F9E",marginLeft:6}}>← Tú</span>}</div>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"#1B4F9E"}}>{u.score}<span style={{fontSize:14,color:"#6B7A99",fontFamily:"inherit",marginLeft:3}}>pts</span></div>
+            <div style={{fontSize:12,color:"var(--muted)"}}>›</div>
           </div>
         ))}
       </div>
