@@ -610,6 +610,48 @@ export default function App() {
     try {
       await sb.from("results").upsert({match_id:matchId, home_goals:homeGoals, away_goals:awayGoals, penalty_winner:penaltyWinner||null},{onConflict:"match_id"});
     } catch(e) { console.error("Error guardando resultado:", e); }
+
+    // ── Actualizar Survivor automáticamente ──────────────────
+    const match = ALL_MATCHES.find(m => m.id === matchId);
+    if (!match) return;
+    const matchDate = match.date;
+    const winner = homeGoals > awayGoals ? match.home : awayGoals > homeGoals ? match.away : null;
+    const isDay1 = isJornada1(matchDate);
+    const isExcluded = EXCLUDED_SURVIVOR.includes(matchDate);
+
+    // Buscar todos los picks de ese día (jornada)
+    const jornadaKey = UNIFIED_DAYS[matchDate] || matchDate;
+    const allSurvivorPicks = {...survivorPicks};
+
+    for (const username of Object.keys(allSurvivorPicks)) {
+      // Buscar el pick del usuario para esta jornada
+      const userPicks = allSurvivorPicks[username] || {};
+      const pickDate = Object.keys(userPicks).find(d => (UNIFIED_DAYS[d] || d) === jornadaKey);
+      if (!pickDate) continue;
+      const pick = userPicks[pickDate];
+      if (!pick || pick.result !== null) continue; // ya tiene resultado
+
+      // Verificar si el equipo elegido ganó en ESTE partido
+      if (pick.team !== match.home && pick.team !== match.away) continue;
+      
+      const teamWon = pick.team === winner;
+      const result = teamWon ? "win" : (winner === null ? "draw" : "loss");
+      const failed = !teamWon && !isDay1 && !isExcluded;
+
+      setSurvivorPicks(prev => ({
+        ...prev,
+        [username]: {
+          ...prev[username],
+          [pickDate]: { ...pick, result, failed }
+        }
+      }));
+
+      try {
+        await sb.from("survivor_picks").upsert({
+          username, date: pickDate, team: pick.team, failed, result
+        }, {onConflict: "username,date"});
+      } catch(e) { console.error("Error actualizando survivor:", e); }
+    }
   }
 
   async function saveGroupResult(group, first, second) {
@@ -1105,12 +1147,21 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
         {fPicks.champion && (
           <div style={{marginTop:14}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>🏆 Pronóstico Final</div>
-            <div style={{background:"var(--card)",borderRadius:10,padding:"12px 14px",border:"1px solid var(--border)",display:"flex",gap:16,flexWrap:"wrap"}}>
-              {[["🥇 Campeón","champion"],["🥈 Subcampeón","runnerUp"],["🥉 3er Puesto","third"],["4° Lugar","fourth"]].map(([label,key])=>(
-                <div key={key} style={{fontSize:14}}>
-                  <span style={{fontWeight:700}}>{label}:</span> {fPicks[key]||"—"}
-                </div>
-              ))}
+            <div style={{background:"var(--card)",borderRadius:10,padding:"12px 14px",border:"1px solid var(--border)",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
+              {[["🥇 Campeón","champion",12],["🥈 Subcampeón","runnerUp",9],["🥉 3er Puesto","third",7],["4° Lugar","fourth",5]].map(([label,key,maxPts])=>{
+                const acerto = finalResults[key] && fPicks[key]===finalResults[key];
+                const tieneResultado = !!finalResults[key];
+                return (
+                  <div key={key} style={{background:"rgba(27,79,158,0.06)",borderRadius:8,padding:"8px 10px"}}>
+                    <div style={{fontSize:12,color:"var(--muted)",fontWeight:700}}>{label} ({maxPts}pts)</div>
+                    <div style={{fontSize:14,fontWeight:600}}>{fPicks[key]||"—"}</div>
+                    {tieneResultado && <div style={{fontSize:13,fontWeight:700,color:acerto?"var(--green)":"var(--red)",marginTop:2}}>{acerto?`+${maxPts}pts`:"0pts"}</div>}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{marginTop:8,textAlign:"right",fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)"}}>
+              Total Fase 3: +{calcFinalPickScore(fPicks, finalResults)}pts
             </div>
           </div>
         )}
