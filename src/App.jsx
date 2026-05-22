@@ -678,7 +678,13 @@ export default function App() {
         is_admin:false, survivor_enabled:u.survivorEnabled, pago_survivor:u.pagoSurvivor,
         valor_pagado:u.valorPagado, must_change_password:true,
       },{onConflict:"username"});
-      await sb.from("pagos").upsert({username:u.username, pago_repolla:false, pago_survivor:false},{onConflict:"username"});
+      await sb.from("pagos").upsert({
+        username: u.username,
+        pago_repolla: true,
+        pago_survivor: u.survivorEnabled,
+        valor_repolla: u.valorPagado - (u.survivorEnabled ? (u.valorSurvivor||200000) : 0),
+        valor_survivor: u.survivorEnabled ? (u.valorSurvivor||200000) : 0
+      },{onConflict:"username"});
     } catch(e) { console.error("Error creando usuario:", e); }
   }
 
@@ -1617,8 +1623,11 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
     if(users.find(u=>u.username===newUser.username)){
       setUserMsg("⚠️ Ese usuario ya existe");return;
     }
-    addUser(newUser);
-    setNewUser({username:"",password:"Repolla2026",name:"",apodo:"",email:"",phone:"",city:"",tipo:"repollo",fechaEspecial:false,survivorEnabled:false,pagoSurvivor:false,valorPagado:800000});
+    const valorSurvivor = newUser.survivorEnabled ? (newUser.valorSurvivor||200000) : 0;
+    const valorRepolla = newUser.valorPersonalizado ? Number(newUser.valorPersonalizado) : (newUser.tipo==="repollo"?800000:1000000);
+    const valorTotal = valorRepolla + valorSurvivor;
+    addUser({...newUser, valorPagado: valorTotal, pagoSurvivor: newUser.survivorEnabled});
+    setNewUser({username:"",password:"Repolla2026",name:"",apodo:"",email:"",phone:"",city:"",tipo:"repollo",fechaEspecial:false,survivorEnabled:false,pagoSurvivor:false,valorPagado:800000,valorSurvivor:200000,valorPersonalizado:""});
     setUserMsg("✅ Participante agregado correctamente");
     setTimeout(()=>setUserMsg(""),4000);
   }
@@ -1831,6 +1840,13 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
                 {newUser.survivorEnabled?"🔥 SÍ juega":"❌ NO juega"}
               </button>
             </div>
+            {newUser.survivorEnabled && (
+              <div className="field" style={{flex:1,minWidth:140,marginBottom:0}}>
+                <label>💵 Valor Survivor</label>
+                <input value={newUser.valorSurvivor||200000} onChange={e=>setNewUser(p=>({...p,valorSurvivor:Number(e.target.value)}))}
+                  type="number" placeholder="200000"/>
+              </div>
+            )}
             <button className="btn-save" onClick={doAddUser} style={{padding:"11px 24px",fontSize:16}}>
               ➕ Agregar RePoLLo
             </button>
