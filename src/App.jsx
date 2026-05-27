@@ -595,15 +595,17 @@ export default function App() {
     const username = currentUser.username;
     setFinalPicks(prev => ({...prev, [username]: picks}));
     try {
-      await sb.from("pronosticos_finales").delete().eq("username", username);
-      await sb.from("pronosticos_finales").insert({
+      const { error: delError } = await sb.from("pronosticos_finales").delete().eq("username", username);
+      if (delError) { console.error("Error borrando:", delError); alert("Error al guardar (delete): " + delError.message); return; }
+      const { error: insError } = await sb.from("pronosticos_finales").insert({
         username,
         champion: picks.champion||null,
         runner_up: picks.runnerUp||null,
         third: picks.third||null,
         fourth: picks.fourth||null,
       });
-    } catch(e) { console.error("Error guardando pronóstico final:", e); }
+      if (insError) { console.error("Error insertando:", insError); alert("Error al guardar (insert): " + insError.message); return; }
+    } catch(e) { console.error("Error guardando pronóstico final:", e); alert("Error: " + e.message); }
   }
 
   async function saveResult(matchId, homeGoals, awayGoals, penaltyWinner) {
