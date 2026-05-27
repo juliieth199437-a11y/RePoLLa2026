@@ -768,7 +768,7 @@ export default function App() {
       <div className="content">
         {tab==="hoy" && <HoyTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="manana" && <MananaTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
-        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} testMode={testMode} />}
+        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} testMode={testMode} setTestMode={setTestMode} />}
         {tab==="fase1" && <Fase1Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} testMode={testMode} />}
         {tab==="fase2" && <Fase2Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="fase3" && <Fase3Tab currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} />}
@@ -1982,11 +1982,11 @@ function MananaTab({currentUser, predictions, results, savePrediction, testMode}
 // ============================================================
 // SURVIVOR TAB
 // ============================================================
-function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testMode}) {
+function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testMode, setTestMode}) {
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
-  const today = testMode ? "2026-06-11" : todayStr();
+  const today = testMode ? "2026-06-13" : todayStr();
 
   // Jornadas unificadas: fecha real -> fecha clave de la jornada
   const UNIFIED_DAYS = {
@@ -2099,7 +2099,15 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
     <div>
       {/* Header */}
       <div style={{background:"linear-gradient(135deg,#1B4F9E,#C41E3A)",border:"none",borderRadius:14,padding:"20px 24px",marginBottom:16}}>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
+          {isAdmin && (
+            <button onClick={()=>typeof setTestMode==="function" && setTestMode(t=>!t)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",
+              background:testMode?"#2a1a00":"transparent",borderColor:testMode?"#F5C518":"rgba(255,255,255,0.3)",color:testMode?"#F5C518":"#E8EDF5"}}>
+              {testMode?"🔓 Modo Prueba ON":"🧪 Modo Prueba"}
+            </button>
+          )}
+        </div>
         <div style={{fontSize:15,color:"#E8EDF5",marginTop:4,lineHeight:1.7}}>
           1 equipo por fecha · Solo gana el que <strong>GANA</strong> · Empate o derrota = pierdes vida<br/>
           <strong>2 vidas</strong> · No repites equipos · Día 1 y días nulos: nadie muere pero el equipo queda usado
