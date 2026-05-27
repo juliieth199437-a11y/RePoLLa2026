@@ -217,7 +217,7 @@ function isMatchOpen(match, testMode=false) {
 // Is match visible today (show only today's + past matches)?
 function isMatchVisible(match, testMode=false) {
   if (testMode) return true;
-  return match.date <= new Date().toISOString().slice(0,10);
+  return match.date <= new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
 }
 
 // Are predictions visible?
@@ -817,7 +817,7 @@ function LoginScreen({login}) {
 // HOY TAB — only today's matches
 // ============================================================
 function HoyTab({currentUser, predictions, results, savePrediction, testMode}) {
-  const today = testMode ? "2026-06-11" : new Date().toISOString().slice(0,10);
+  const today = testMode ? "2026-06-11" : new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const todayMatches = ALL_MATCHES.filter(m => m.date === today && m.fase <= 2);
 
   return (
@@ -1283,7 +1283,7 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `RePoLLa_Pronosticos_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `RePoLLa_Pronosticos_${new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1986,7 +1986,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
-  const today = testMode ? "2026-06-13" : new Date().toISOString().slice(0,10);
+  const today = testMode ? "2026-06-13" : new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
 
   // Jornadas unificadas: fecha real -> fecha clave de la jornada
   const UNIFIED_DAYS = {
