@@ -1471,7 +1471,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
   }
   if (finalPicks && finalResults) {
     const fp = finalPicks;
-    [{k:"champion",l:"Campeón",v:9},{k:"runnerUp",l:"Subcampeón",v:7},{k:"third",l:"Tercer Puesto",v:5},{k:"fourth",l:"Cuarto Puesto",v:3}].forEach(f=>{
+    [{k:"champion",l:"Campeón",v:12},{k:"runnerUp",l:"Subcampeón",v:9},{k:"third",l:"Tercer Puesto",v:7},{k:"fourth",l:"Cuarto Puesto",v:5}].forEach(f=>{
       if (fp[f.k] && finalResults[f.k]) {
         const pts=fp[f.k]===finalResults[f.k]?f.v:0;
         finalRows.push({label:f.l,pick:fp[f.k],result:finalResults[f.k],pts,max:f.v});
