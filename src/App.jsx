@@ -595,13 +595,14 @@ export default function App() {
     const username = currentUser.username;
     setFinalPicks(prev => ({...prev, [username]: picks}));
     try {
-      await sb.from("pronosticos_finales").upsert({
+      await sb.from("pronosticos_finales").delete().eq("username", username);
+      await sb.from("pronosticos_finales").insert({
         username,
         champion: picks.champion||null,
         runner_up: picks.runnerUp||null,
         third: picks.third||null,
         fourth: picks.fourth||null,
-      },{onConflict:"username"});
+      });
     } catch(e) { console.error("Error guardando pronóstico final:", e); }
   }
 
@@ -647,9 +648,10 @@ export default function App() {
       }));
 
       try {
-        await sb.from("survivor_picks").upsert({
+        await sb.from("survivor_picks").delete().eq("username", username).eq("date", pickDate);
+        await sb.from("survivor_picks").insert({
           username, date: pickDate, team: pick.team, failed, result
-        }, {onConflict: "username,date"});
+        });
       } catch(e) { console.error("Error actualizando survivor:", e); }
     }
   }
@@ -2043,13 +2045,14 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
       }
     }));
     try {
-      await sb.from("survivor_picks").upsert({
+      await sb.from("survivor_picks").delete().eq("username", currentUser.username).eq("date", today);
+      await sb.from("survivor_picks").insert({
         username: currentUser.username,
         date: today,
         team: selectedTeam,
         failed: false,
         result: null
-      }, {onConflict: "username,date"});
+      });
     } catch(e) { console.error("Error guardando survivor pick:", e); }
     setSaved(true);
     setSelectedTeam("");
@@ -2071,13 +2074,14 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
       }
     }));
     try {
-      await sb.from("survivor_picks").upsert({
+      await sb.from("survivor_picks").delete().eq("username", username).eq("date", date);
+      await sb.from("survivor_picks").insert({
         username,
         date,
         team: pick.team,
         failed,
         result
-      }, {onConflict: "username,date"});
+      });
     } catch(e) { console.error("Error guardando resultado survivor:", e); }
   }
 
