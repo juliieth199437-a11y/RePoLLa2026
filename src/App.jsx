@@ -334,7 +334,8 @@ function useLocalState(key, init) {
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState("hoy");
-  const [testMode, setTestMode] = useState(true);
+  const [testMode, setTestMode] = useState(false);
+  const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
 
   const DEFAULT_USERS = [
   {username:"admin",password:"admin123",name:"Administradora",isAdmin:true,survivorEnabled:false},
@@ -770,7 +771,7 @@ export default function App() {
       <div className="content">
         {tab==="hoy" && <HoyTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="manana" && <MananaTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
-        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} testMode={testMode} setTestMode={setTestMode} />}
+        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} testMode={testMode} setTestMode={setTestMode} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} />}
         {tab==="fase1" && <Fase1Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} testMode={testMode} />}
         {tab==="fase2" && <Fase2Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="fase3" && <Fase3Tab currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} />}
@@ -1984,11 +1985,14 @@ function MananaTab({currentUser, predictions, results, savePrediction, testMode}
 // ============================================================
 // SURVIVOR TAB
 // ============================================================
-function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testMode, setTestMode}) {
+function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testMode, setTestMode, survivorTestDate, setSurvivorTestDate}) {
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
-  const today = testMode ? "2026-06-13" : new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+  const [survivorTest, setSurvivorTest] = React.useState(false);
+  const [testDateIdx, setTestDateIdx] = React.useState(1);
+  const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+  const today = survivorTest ? groupDates[testDateIdx] || "2026-06-13" : realToday;
 
   // Jornadas unificadas: fecha real -> fecha clave de la jornada
   const UNIFIED_DAYS = {
@@ -2104,10 +2108,19 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
           {isAdmin && (
-            <button onClick={()=>typeof setTestMode==="function" && setTestMode(t=>!t)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",
-              background:testMode?"#2a1a00":"transparent",borderColor:testMode?"#F5C518":"rgba(255,255,255,0.3)",color:testMode?"#F5C518":"#E8EDF5"}}>
-              {testMode?"🔓 Modo Prueba ON":"🧪 Modo Prueba"}
-            </button>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+              <button onClick={()=>setSurvivorTest(t=>!t)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",
+                background:survivorTest?"#2a1a00":"transparent",borderColor:survivorTest?"#F5C518":"rgba(255,255,255,0.3)",color:survivorTest?"#F5C518":"#E8EDF5"}}>
+                {survivorTest?"🔓 Prueba ON":"🧪 Modo Prueba"}
+              </button>
+              {survivorTest && (
+                <>
+                  <button onClick={()=>setTestDateIdx(i=>Math.max(0,i-1))} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>◀</button>
+                  <span style={{color:"#F5C518",fontSize:13,fontWeight:700}}>{today}</span>
+                  <button onClick={()=>setTestDateIdx(i=>Math.min(groupDates.length-1,i+1))} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>▶</button>
+                </>
+              )}
+            </div>
           )}
         </div>
         <div style={{fontSize:15,color:"#E8EDF5",marginTop:4,lineHeight:1.7}}>
