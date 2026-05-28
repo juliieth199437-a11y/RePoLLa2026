@@ -762,8 +762,8 @@ export default function App() {
     {key:"mispuntos", label:"📊 Mis Puntos"},
     ...(currentUser.survivorEnabled ? [{key:"survivor", label:"🔥 Survivor"}] : []),
     {key:"bolsa", label:"💰 Bolsa"},
-    {key:"miperfil", label:"👤 Mi Perfil"},
     {key:"reglas", label:"📖 Reglas"},
+    {key:"miperfil", label:"👤 Mi Perfil"},
   ];
 
   return (
@@ -965,6 +965,7 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
   const [local, setLocal] = useState({});
   const [saved, setSaved] = useState({});
   const [confirming, setConfirming] = useState(null);
+  const [inputError, setInputError] = useState({});
 
   function getPred(matchId){return local[matchId]||predictions[matchId]||{};}
 
@@ -972,11 +973,15 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
     const clean = value.replace(/[^0-9]/g, "");
     const num = clean === "" ? "" : parseInt(clean);
     setLocal(p=>({...p,[matchId]:{...getPred(matchId),[field]:num}}));
+    setInputError(p=>({...p,[matchId]:""}));
   }
 
   function handleSave(matchId) {
     const p = getPred(matchId);
-    if (p.homeGoals === "" || p.homeGoals == null || p.awayGoals === "" || p.awayGoals == null) return;
+    if (p.homeGoals === "" || p.homeGoals == null || p.awayGoals === "" || p.awayGoals == null) {
+      setInputError(prev=>({...prev,[matchId]:"⚠️ Debes ingresar el marcador de ambos equipos (puedes poner 0)."}));
+      return;
+    }
     setConfirming(matchId);
   }
 
@@ -1051,16 +1056,22 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
                   )}
                 </div>
               )}
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:8}}>
-                {!locked && (
-                  <button className="btn-save" onClick={()=>handleSave(match.id)}
-                    disabled={getPred(match.id).homeGoals==="" || getPred(match.id).homeGoals==null || getPred(match.id).awayGoals==="" || getPred(match.id).awayGoals==null}>
-                    📨 Enviar
-                  </button>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:8,flexDirection:"column"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                  {!locked && (
+                    <button className="btn-save" onClick={()=>handleSave(match.id)}>
+                      📨 Enviar
+                    </button>
+                  )}
+                  {alreadySaved && !result && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✓ Enviado</span>}
+                  {!open && !alreadySaved && !result && <span style={{fontSize:14,color:"#C41E3A",fontWeight:700}}>🔒 Cerrado</span>}
+                  {saved[match.id] && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✓ ¡Guardado!</span>}
+                </div>
+                {inputError[match.id] && (
+                  <div style={{fontSize:13,color:"#C41E3A",fontWeight:700,textAlign:"center",padding:"4px 10px",background:"rgba(196,30,58,0.08)",borderRadius:8}}>
+                    {inputError[match.id]}
+                  </div>
                 )}
-                {alreadySaved && !result && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✓ Enviado</span>}
-                {!open && !alreadySaved && !result && <span style={{fontSize:14,color:"#C41E3A",fontWeight:700}}>🔒 Cerrado</span>}
-                {saved[match.id] && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✓ ¡Guardado!</span>}
               </div>
               {/* Modal de confirmación */}
               {confirming===match.id && (
@@ -1078,7 +1089,7 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
                         Cancelar
                       </button>
                       <button onClick={()=>confirmSave(match.id)} style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:"var(--blue)",color:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:15,fontWeight:700}}>
-                        ✅ Sí, enviar
+                        ✅ Confirmar
                       </button>
                     </div>
                   </div>
