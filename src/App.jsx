@@ -334,8 +334,17 @@ function useLocalState(key, init) {
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState("hoy");
-  const [testMode, setTestMode] = useState(false);
   const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
+
+  // testMode se carga desde Supabase para compartirlo entre todos los usuarios
+  const [testMode, setTestModeState] = useState(false);
+  async function setTestMode(val) {
+    const newVal = typeof val === "function" ? val(testMode) : val;
+    setTestModeState(newVal);
+    try {
+      await sb.from("config").upsert({key:"testMode", value: newVal ? "true" : "false"}, {onConflict:"key"});
+    } catch(e) { console.error("Error guardando testMode:", e); }
+  }
 
   const DEFAULT_USERS = [
   {username:"admin",password:"admin123",name:"Administradora",isAdmin:true,survivorEnabled:false},
@@ -536,6 +545,12 @@ export default function App() {
           });
           setSurvivorPicks(mapped);
         }
+
+        // Cargar testMode global
+        try {
+          const { data: cfg } = await sb.from("config").select("*").eq("key","testMode").single();
+          if (cfg) setTestModeState(cfg.value === "true");
+        } catch(e) {}
 
         setDbReady(true);
       } catch(e) {
