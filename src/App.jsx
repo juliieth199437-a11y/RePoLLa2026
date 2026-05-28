@@ -1085,10 +1085,10 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
                     </div>
                     <div style={{fontSize:13,color:"var(--red)",fontWeight:700,marginBottom:16}}>⚠️ Una vez enviado NO podrás modificarlo</div>
                     <div style={{display:"flex",gap:10}}>
-                      <button onClick={()=>setConfirming(null)} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid var(--border)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"inherit",fontSize:15,fontWeight:700}}>
-                        Cancelar
+                      <button onClick={()=>setConfirming(null)} style={{flex:1,padding:"12px 0",borderRadius:8,border:"2px solid #1A1A2E",background:"transparent",color:"#1A1A2E",cursor:"pointer",fontFamily:"inherit",fontSize:16,fontWeight:700}}>
+                        ✖ Cancelar
                       </button>
-                      <button onClick={()=>confirmSave(match.id)} style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:"var(--blue)",color:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:15,fontWeight:700}}>
+                      <button onClick={()=>confirmSave(match.id)} style={{flex:1,padding:"12px 0",borderRadius:8,border:"2px solid #2D8A3E",background:"#2D8A3E",color:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:16,fontWeight:700}}>
                         ✅ Confirmar
                       </button>
                     </div>
