@@ -750,6 +750,7 @@ export default function App() {
     {key:"pronosticos", label:"👁️ Ver Pronósticos"},
     {key:"survivor", label:"🔥 Survivor"},
     {key:"bolsa", label:"💰 Bolsa"},
+    {key:"reglas", label:"📖 Reglas"},
   ] : [
     {key:"hoy", label:"📅 Hoy"},
     {key:"manana", label:"🌅 Mañana"},
@@ -762,6 +763,7 @@ export default function App() {
     ...(currentUser.survivorEnabled ? [{key:"survivor", label:"🔥 Survivor"}] : []),
     {key:"bolsa", label:"💰 Bolsa"},
     {key:"miperfil", label:"👤 Mi Perfil"},
+    {key:"reglas", label:"📖 Reglas"},
   ];
 
   return (
@@ -795,6 +797,7 @@ export default function App() {
         {tab==="mispuntos" && <MisPuntosTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
+        {tab==="reglas" && <ReglasTab />}
         {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} />}
       </div>
     </div>
@@ -961,14 +964,28 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
 function MatchList({matches, predictions, results, savePrediction, testMode, allPredictions, showScores}) {
   const [local, setLocal] = useState({});
   const [saved, setSaved] = useState({});
+  const [confirming, setConfirming] = useState(null);
 
   function getPred(matchId){return local[matchId]||predictions[matchId]||{};}
-  function handleChange(matchId,field,value){setLocal(p=>({...p,[matchId]:{...getPred(matchId),[field]:value}}));}
-  function handleSave(matchId){
-    const p=getPred(matchId);
-    savePrediction(matchId, p.homeGoals??"", p.awayGoals??"", p.penaltyWinner);
-    setSaved(p=>({...p,[matchId]:true}));
-    setTimeout(()=>setSaved(p=>({...p,[matchId]:false})),2000);
+
+  function handleChange(matchId, field, value) {
+    const clean = value.replace(/[^0-9]/g, "");
+    const num = clean === "" ? "" : parseInt(clean);
+    setLocal(p=>({...p,[matchId]:{...getPred(matchId),[field]:num}}));
+  }
+
+  function handleSave(matchId) {
+    const p = getPred(matchId);
+    if (p.homeGoals === "" || p.homeGoals == null || p.awayGoals === "" || p.awayGoals == null) return;
+    setConfirming(matchId);
+  }
+
+  function confirmSave(matchId) {
+    const p = getPred(matchId);
+    savePrediction(matchId, p.homeGoals, p.awayGoals, p.penaltyWinner);
+    setSaved(prev=>({...prev,[matchId]:true}));
+    setConfirming(null);
+    setTimeout(()=>setSaved(prev=>({...prev,[matchId]:false})),2000);
   }
 
   if (matches.length===0) return <div style={{color:"#6B7A99",textAlign:"center",padding:"30px 0"}}>No hay partidos disponibles aún.</div>;
@@ -1035,11 +1052,38 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
                 </div>
               )}
               <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:8}}>
-                {!locked && <button className="btn-save" onClick={()=>handleSave(match.id)}>📨 Enviar</button>}
+                {!locked && (
+                  <button className="btn-save" onClick={()=>handleSave(match.id)}
+                    disabled={getPred(match.id).homeGoals==="" || getPred(match.id).homeGoals==null || getPred(match.id).awayGoals==="" || getPred(match.id).awayGoals==null}>
+                    📨 Enviar
+                  </button>
+                )}
                 {alreadySaved && !result && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✓ Enviado</span>}
                 {!open && !alreadySaved && !result && <span style={{fontSize:14,color:"#C41E3A",fontWeight:700}}>🔒 Cerrado</span>}
                 {saved[match.id] && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✓ ¡Guardado!</span>}
               </div>
+              {/* Modal de confirmación */}
+              {confirming===match.id && (
+                <div style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",background:"rgba(0,0,0,0.7)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <div style={{background:"var(--card)",borderRadius:16,padding:28,maxWidth:340,width:"90%",textAlign:"center",border:"2px solid var(--blue)"}}>
+                    <div style={{fontSize:28,marginBottom:8}}>⚠️</div>
+                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"var(--blue)",marginBottom:8}}>¿Confirmas tu pronóstico?</div>
+                    <div style={{fontSize:15,color:"var(--text)",marginBottom:6}}>{match.home} vs {match.away}</div>
+                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:36,color:"var(--text)",marginBottom:6}}>
+                      {getPred(match.id).homeGoals} — {getPred(match.id).awayGoals}
+                    </div>
+                    <div style={{fontSize:13,color:"var(--red)",fontWeight:700,marginBottom:16}}>⚠️ Una vez enviado NO podrás modificarlo</div>
+                    <div style={{display:"flex",gap:10}}>
+                      <button onClick={()=>setConfirming(null)} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid var(--border)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"inherit",fontSize:15,fontWeight:700}}>
+                        Cancelar
+                      </button>
+                      <button onClick={()=>confirmSave(match.id)} style={{flex:1,padding:"10px 0",borderRadius:8,border:"none",background:"var(--blue)",color:"#fff",cursor:"pointer",fontFamily:"inherit",fontSize:15,fontWeight:700}}>
+                        ✅ Sí, enviar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -1578,6 +1622,23 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
   const [localResults, setLocalResults]=useState({});
   const [localGroupResults, setLocalGroupResults]=useState({});
   const [localFinal, setLocalFinal]=useState(finalResults||{});
+  const [deletingUser, setDeletingUser]=useState(null);
+  const [deleteMsg, setDeleteMsg]=useState("");
+
+  async function borrarPronosticos(username, tipo) {
+    try {
+      if (tipo==="todo" || tipo==="partidos") await sb.from("predictions").delete().eq("username",username);
+      if (tipo==="todo" || tipo==="grupos") await sb.from("group_picks").delete().eq("username",username);
+      if (tipo==="todo" || tipo==="fase3") await sb.from("pronosticos_finales").delete().eq("username",username);
+      if (tipo==="todo" || tipo==="survivor") await sb.from("survivor_picks").delete().eq("username",username);
+      setDeleteMsg(`✅ Pronósticos de ${username} eliminados`);
+      setTimeout(()=>setDeleteMsg(""),3000);
+    } catch(e) {
+      setDeleteMsg("❌ Error al eliminar: "+e.message);
+    }
+    setDeletingUser(null);
+  }
+
   const TARIFAS = {
     repollo_antes: 800000,
     repollo_despues: 900000,
@@ -1588,7 +1649,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
     username:"", password:"Repolla2026", name:"", apodo:"",
     email:"", phone:"", city:"",
     tipo:"repollo",
-    fechaEspecial: false, // después del 15 mayo
+    fechaEspecial: false,
     survivorEnabled:false,
     pagoSurvivor:false,
     valorPagado:800000,
@@ -1781,6 +1842,38 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
       {/* Add user */}
       <div style={{marginBottom:24}}>
+        {/* ── BORRAR PRONÓSTICOS (solo en modo prueba) ── */}
+        {testMode && (
+          <div style={{background:"rgba(196,30,58,0.06)",border:"2px solid #C41E3A",borderRadius:14,padding:"18px 20px",marginBottom:20}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#C41E3A",letterSpacing:2,marginBottom:10}}>
+              🗑️ BORRAR PRONÓSTICOS — Solo Modo Prueba
+            </div>
+            {deleteMsg && <div style={{marginBottom:10,fontWeight:700,color:deleteMsg.startsWith("✅")?"#2D8A3E":"#C41E3A"}}>{deleteMsg}</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {users.filter(u=>!u.isAdmin).map(u=>(
+                <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <div style={{flex:1,fontWeight:700,fontSize:15}}>{u.apodo||u.name} <span style={{color:"var(--muted)",fontWeight:400,fontSize:13}}>@{u.username}</span></div>
+                  {deletingUser===u.username ? (
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      <span style={{fontSize:13,color:"var(--muted)",alignSelf:"center"}}>¿Qué borrar?</span>
+                      {[["todo","🗑️ Todo"],["partidos","⚽ Partidos"],["grupos","📊 Tabla B"],["fase3","🏆 Fase 3"],["survivor","🔥 Survivor"]].map(([tipo,label])=>(
+                        <button key={tipo} onClick={()=>borrarPronosticos(u.username,tipo)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C41E3A",background:"rgba(196,30,58,0.1)",color:"#C41E3A",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+                          {label}
+                        </button>
+                      ))}
+                      <button onClick={()=>setDeletingUser(null)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid var(--border)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"inherit",fontSize:13}}>Cancelar</button>
+                    </div>
+                  ) : (
+                    <button onClick={()=>setDeletingUser(u.username)} style={{padding:"5px 12px",borderRadius:7,border:"1px solid #C41E3A",background:"transparent",color:"#C41E3A",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
+                      🗑️ Borrar
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>👤 Agregar Participante</div>
         <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Completa los datos del formulario de inscripción. Solo Nombre, Usuario y Contraseña son obligatorios.</div>
         <div style={{background:"#F8F9FC",border:"1px solid var(--border)",borderRadius:14,padding:"20px"}}>
@@ -2745,6 +2838,157 @@ function MiPerfilTab({currentUser, updateUser}) {
             ✅ ¡Perfil actualizado!
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// REGLAS TAB
+// ============================================================
+function ReglasTab() {
+  const cardStyle = {background:"var(--card)",borderRadius:14,padding:"18px 20px",marginBottom:16,border:"1px solid var(--border)"};
+  const titleStyle = {fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"var(--blue)",marginBottom:12,letterSpacing:1};
+  const itemStyle = {fontSize:15,color:"var(--text)",marginBottom:8,paddingLeft:8,borderLeft:"3px solid var(--blue)",lineHeight:1.5};
+  const subStyle = {fontSize:13,color:"var(--muted)",marginTop:4,paddingLeft:8};
+  const badgeStyle = (bg) => ({display:"inline-block",background:bg,color:"#fff",borderRadius:6,padding:"2px 10px",fontSize:13,fontWeight:700,marginRight:6});
+
+  return (
+    <div style={{maxWidth:600,margin:"0 auto"}}>
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,#1B4F9E,#C41E3A)",borderRadius:14,padding:"20px 24px",marginBottom:16,textAlign:"center"}}>
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>📖 REGLAMENTO OFICIAL</div>
+        <div style={{fontSize:15,color:"#E8EDF5",marginTop:4}}>RePoLLa Copa Mundial FIFA 2026 🥬</div>
+      </div>
+
+      {/* Fase 1 - Partidos */}
+      <div style={cardStyle}>
+        <div style={titleStyle}>⚽ FASE 1 — GRUPOS</div>
+        <div style={itemStyle}>
+          <strong>3 puntos</strong> por acertar el marcador exacto de cualquier partido.
+        </div>
+        <div style={itemStyle}>
+          <strong>1 punto</strong> por acertar únicamente el ganador del partido.
+        </div>
+        <div style={itemStyle}>
+          <strong>1 punto</strong> si pronosticas empate y el partido termina empatado.
+        </div>
+        <div style={{...itemStyle,borderColor:"#F5C518"}}>
+          <strong>Fecha límite por partido:</strong> 1 día antes a las 10:00 PM hora Colombia.
+        </div>
+      </div>
+
+      {/* Tabla B */}
+      <div style={cardStyle}>
+        <div style={titleStyle}>📊 PRONÓSTICOS DE GRUPOS (Tabla B)</div>
+        <div style={itemStyle}><strong>4 puntos</strong> por acertar exactamente el 1° y 2° lugar de cada grupo.</div>
+        <div style={itemStyle}><strong>2 puntos</strong> por acertar ambos equipos pero en desorden.</div>
+        <div style={itemStyle}><strong>1 punto</strong> por acertar solo el 1° o solo el 2° lugar.</div>
+        <div style={{...itemStyle,borderColor:"#F5C518"}}>
+          <strong>Fecha límite:</strong> 9 de junio de 2026 — 10:00 PM hora Colombia.
+        </div>
+      </div>
+
+      {/* Fase 2 */}
+      <div style={cardStyle}>
+        <div style={titleStyle}>⚡ FASE 2 — ELIMINATORIAS</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginBottom:10}}>Aplica para: Dieciseisavos · Octavos · Cuartos · Semifinales · 3er Puesto · Final</div>
+        <div style={itemStyle}><strong>3 puntos</strong> por acertar el marcador exacto (solo 90 minutos reglamentarios).</div>
+        <div style={itemStyle}><strong>1 punto</strong> por acertar únicamente el ganador del partido.</div>
+        <div style={{...itemStyle,borderColor:"#2D8A3E"}}>
+          <strong>+1 punto extra</strong> si pronosticas empate exacto Y aciertas el equipo clasificado en penales.
+        </div>
+        <div style={{...itemStyle,borderColor:"#F5C518"}}>
+          <strong>Fecha límite por partido:</strong> 1 día antes a las 10:00 PM hora Colombia.
+        </div>
+      </div>
+
+      {/* Fase 3 */}
+      <div style={cardStyle}>
+        <div style={titleStyle}>🏆 FASE FINAL — PODIO DEL MUNDIAL</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          {[["🥇 Campeón","12 pts","#F5C518"],["🥈 Subcampeón","9 pts","#9E9E9E"],["🥉 3er Puesto","7 pts","#CD7F32"],["4° Lugar","5 pts","var(--blue)"]].map(([pos,pts,color])=>(
+            <div key={pos} style={{background:"rgba(27,79,158,0.06)",borderRadius:10,padding:"10px 14px",textAlign:"center"}}>
+              <div style={{fontSize:16}}>{pos}</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color}}>{pts}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{...itemStyle,borderColor:"#F5C518"}}>
+          <strong>Fecha límite:</strong> 9 de junio de 2026 — 10:00 PM hora Colombia.
+        </div>
+      </div>
+
+      {/* Premiación */}
+      <div style={cardStyle}>
+        <div style={titleStyle}>🏅 PREMIACIÓN OFICIAL</div>
+        <div style={itemStyle}><span style={badgeStyle("#F5C518")}>1°</span> <strong>48%</strong> del pozo total</div>
+        <div style={itemStyle}><span style={badgeStyle("#9E9E9E")}>2°</span> <strong>25%</strong> del pozo total</div>
+        <div style={itemStyle}><span style={badgeStyle("#CD7F32")}>3°</span> <strong>15%</strong> del pozo total</div>
+        <div style={itemStyle}><span style={badgeStyle("#C41E3A")}>❤️</span> <strong>5%</strong> Hogar AMYSER</div>
+        <div style={itemStyle}><span style={badgeStyle("#1B4F9E")}>⚙️</span> <strong>4%</strong> Administración</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:8}}>
+          + Premios especiales: The Wall Award · Fake News Trophy · RePoLLo Supremo (1% c/u)
+        </div>
+      </div>
+
+      {/* Premios especiales */}
+      <div style={cardStyle}>
+        <div style={titleStyle}>🎖️ PREMIOS SORPRESA</div>
+        <div style={itemStyle}>
+          <strong>🧱 The Wall Award (1%)</strong>
+          <div style={subStyle}>Para el RePoLLo con MÁS empates acertados durante todo el Mundial.</div>
+        </div>
+        <div style={itemStyle}>
+          <strong>📰 Fake News Trophy (1%)</strong>
+          <div style={subStyle}>Para quien MÁS veces falle por exactamente un gol. Ej: puso 2-1, quedó 1-1.</div>
+        </div>
+        <div style={itemStyle}>
+          <strong>🥬 RePoLLo Supremo (1%)</strong>
+          <div style={subStyle}>Para el RePoLLo con mayor puntaje únicamente en fase de grupos.</div>
+        </div>
+        <div style={itemStyle}>
+          <strong>⚽ La Pena Máxima</strong>
+          <div style={subStyle}>Premio: Bono $300.000 La Nacional Carnicería. Gana quien acierte el total de penales en tiempo reglamentario durante todo el Mundial.</div>
+        </div>
+      </div>
+
+      {/* Survivor */}
+      <div style={{...cardStyle,border:"2px solid #C41E3A"}}>
+        <div style={{...titleStyle,color:"#C41E3A"}}>🔥 SURVIVOR</div>
+        <div style={itemStyle}><strong>Inscripción:</strong> $200.000 COP adicionales.</div>
+        <div style={itemStyle}>Elige <strong>1 equipo por jornada</strong> — ese equipo debe ganar en 90 minutos.</div>
+        <div style={itemStyle}>No puedes repetir equipo durante todo el torneo.</div>
+        <div style={itemStyle}>Cada participante inicia con <strong>2 vidas ❤️❤️</strong></div>
+        <div style={itemStyle}>Si el equipo NO gana → pierdes una vida 🖤</div>
+        <div style={itemStyle}>Si pierdes ambas vidas → quedas eliminado.</div>
+        <div style={{...itemStyle,borderColor:"#F5C518"}}>
+          <strong>Día Nulo:</strong> Si TODOS los partidos de una jornada terminan empatados, nadie pierde vida (pero el equipo queda usado).
+        </div>
+        <div style={{marginTop:12,background:"rgba(196,30,58,0.08)",borderRadius:10,padding:"10px 14px"}}>
+          <div style={{fontWeight:700,marginBottom:6}}>💰 Distribución del pozo Survivor:</div>
+          <div style={{fontSize:14}}>🥇 85% → Ganador · 🥈 5% → 2do Puesto · ❤️ 5% → Hogar AMYSER · ⚙️ 5% → Admin</div>
+        </div>
+      </div>
+
+      {/* Reglas de empate */}
+      <div style={cardStyle}>
+        <div style={titleStyle}>⚖️ REGLAS DE EMPATE</div>
+        <div style={itemStyle}>Si hay empate en 1°: se suman premios de 1° y 2° y se dividen entre empatados.</div>
+        <div style={itemStyle}>Si hay empate en 2°: se suman premios de 2° y 3° y se dividen entre empatados.</div>
+        <div style={itemStyle}>Si hay empate en 3°: el premio se divide entre los empatados.</div>
+      </div>
+
+      {/* Beneficencia */}
+      <div style={{...cardStyle,background:"rgba(196,30,58,0.05)",border:"1px solid #C41E3A",textAlign:"center"}}>
+        <div style={{fontSize:24,marginBottom:8}}>❤️</div>
+        <div style={{fontWeight:700,fontSize:16,color:"#C41E3A",marginBottom:4}}>BENEFICENCIA</div>
+        <div style={{fontSize:14,color:"var(--text)"}}>El 5% del pozo total será destinado al <strong>Hogar AMYSER</strong>, hogar para mujeres adultas mayores en Bogotá.</div>
+        <div style={{fontSize:13,color:"var(--muted)",marginTop:6}}>📍 Calle 145 No. 9-71 — Bogotá · @hogaramyser</div>
+      </div>
+
+      <div style={{textAlign:"center",fontSize:13,color:"var(--muted)",padding:"10px 0 20px"}}>
+        🥬 <strong>RePoLLo que NO paga… NO participa.</strong> · "MAKE REPOLLA GREAT AGAIN." 🔥
       </div>
     </div>
   );
