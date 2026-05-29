@@ -1669,10 +1669,22 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
   async function borrarPronosticos(username, tipo) {
     try {
-      if (tipo==="todo" || tipo==="partidos") await sb.from("predictions").delete().eq("username",username);
-      if (tipo==="todo" || tipo==="grupos") await sb.from("group_picks").delete().eq("username",username);
-      if (tipo==="todo" || tipo==="fase3") await sb.from("pronosticos_finales").delete().eq("username",username);
-      if (tipo==="todo" || tipo==="survivor") await sb.from("survivor_picks").delete().eq("username",username);
+      if (tipo==="todo" || tipo==="partidos") {
+        await sb.from("predictions").delete().eq("username",username);
+        setPredictions(prev => { const n={...prev}; delete n[username]; return n; });
+      }
+      if (tipo==="todo" || tipo==="grupos") {
+        await sb.from("group_picks").delete().eq("username",username);
+        setGroupPicks(prev => { const n={...prev}; delete n[username]; return n; });
+      }
+      if (tipo==="todo" || tipo==="fase3") {
+        await sb.from("pronosticos_finales").delete().eq("username",username);
+        setFinalPicks(prev => { const n={...prev}; delete n[username]; return n; });
+      }
+      if (tipo==="todo" || tipo==="survivor") {
+        await sb.from("survivor_picks").delete().eq("username",username);
+        setSurvivorPicks(prev => { const n={...prev}; delete n[username]; return n; });
+      }
       setDeleteMsg(`✅ Pronósticos de ${username} eliminados`);
       setTimeout(()=>setDeleteMsg(""),3000);
     } catch(e) {
