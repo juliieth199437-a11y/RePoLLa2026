@@ -826,7 +826,7 @@ export default function App() {
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} />}
       </div>
     </div>
   );
@@ -1659,7 +1659,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [localResults, setLocalResults]=useState({});
   const [localGroupResults, setLocalGroupResults]=useState({});
