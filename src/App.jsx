@@ -275,9 +275,14 @@ function calcMatchScore(matchId, pred, result) {
   const realResult = rh > ra ? "home" : rh < ra ? "away" : "draw";
 
   if (match.fase === 1) {
-    // Fase Grupos: 3pts marcador exacto + 1pt ganador/empate
-    if (ph===rh && pa===ra) pts += 3;
-    if (predResult === realResult) pts += 1;
+    // Fase Grupos: solo UNA opción aplica (no acumulan)
+    // 3pts: marcador exacto
+    // 1pt: acertar ganador O pronosticar empate cuando hay empate (pero NO el marcador exacto)
+    if (ph===rh && pa===ra) {
+      pts = 3;
+    } else if (predResult === realResult) {
+      pts = 1;
+    }
   } else {
     // Fase Eliminatorias: 3pts marcador exacto (90min) + 1pt ganador + 1pt extra empate+penales
     if (ph===rh && pa===ra) pts += 3;
@@ -1047,12 +1052,14 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
               <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:8}}>
                 <span className="team-name"><FlagImg team={match.home||""} /> {match.home||match.label}</span>
                 <div style={{display:"flex",alignItems:"center",gap:5}}>
-                  <input className="score-box" type="number" min="0" max="20"
+                  <input className="score-box" type="number" min="0" max="99"
                     value={pred.homeGoals??""} disabled={locked}
+                    onKeyDown={e=>{if(["-","+","e","E","."].includes(e.key))e.preventDefault();}}
                     onChange={e=>!locked&&handleChange(match.id,"homeGoals",e.target.value)} />
                   <span className="score-sep">-</span>
-                  <input className="score-box" type="number" min="0" max="20"
+                  <input className="score-box" type="number" min="0" max="99"
                     value={pred.awayGoals??""} disabled={locked}
+                    onKeyDown={e=>{if(["-","+","e","E","."].includes(e.key))e.preventDefault();}}
                     onChange={e=>!locked&&handleChange(match.id,"awayGoals",e.target.value)} />
                 </div>
                 <span className="team-name away">{match.away||""} <FlagImg team={match.away||""} /></span>
@@ -1885,7 +1892,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
             </div>
             {deleteMsg && <div style={{marginBottom:10,fontWeight:700,color:deleteMsg.startsWith("✅")?"#2D8A3E":"#C41E3A"}}>{deleteMsg}</div>}
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {users.filter(u=>!u.isAdmin).map(u=>(
+              {users.map(u=>(
                 <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                   <div style={{flex:1,fontWeight:700,fontSize:15}}>{u.apodo||u.name} <span style={{color:"var(--muted)",fontWeight:400,fontSize:13}}>@{u.username}</span></div>
                   {deletingUser===u.username ? (
@@ -3019,6 +3026,42 @@ function ReglasTab() {
         <div style={{...itemStyle,borderColor:"#F5C518"}}>
           <strong>Día Nulo:</strong> Si TODOS los partidos de una jornada terminan empatados, nadie pierde vida (pero el equipo queda usado).
         </div>
+        {/* Tabla de jornadas */}
+        <div style={{marginTop:14,overflowX:"auto"}}>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:"#C41E3A"}}>📅 Jornadas del Survivor</div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead>
+              <tr style={{background:"#C41E3A",color:"#fff"}}>
+                <th style={{padding:"6px 10px",textAlign:"left"}}>Día(s) del Mundial</th>
+                <th style={{padding:"6px 10px",textAlign:"center"}}>Día Survivor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["Jun 11 + Jun 12 🟢","Día 1 (sin eliminaciones)"],
+                ["Jun 13","Día 2"],["Jun 14","Día 3"],["Jun 15","Día 4"],
+                ["Jun 16","Día 5"],["Jun 17","Día 6"],["Jun 18","Día 7"],
+                ["Jun 19","Día 8"],["Jun 20","Día 9"],["Jun 21","Día 10"],
+                ["Jun 22","Día 11"],["Jun 23","Día 12"],["Jun 24","Día 13"],
+                ["Jun 25","Día 14"],["Jun 26","Día 15"],["Jun 27","Día 16"],
+                ["Jun 28 + Jun 29 🟢","Día 17"],
+                ["Jun 30","Día 18"],["Jul 1","Día 19"],["Jul 2","Día 20"],
+                ["Jul 3","Día 21"],["Jul 4","Día 22"],["Jul 5","Día 23"],
+                ["Jul 9 + Jul 10 🟢","Día 24"],
+                ["Jul 14 (Semifinal 1)","Día 25"],
+                ["Jul 15 (Semifinal 2)","Día 26"],
+                ["Jul 19 (Final)","Día 27"],
+              ].map(([fecha,dia],i)=>(
+                <tr key={i} style={{background:i%2===0?"rgba(196,30,58,0.05)":"transparent"}}>
+                  <td style={{padding:"5px 10px",borderBottom:"1px solid rgba(196,30,58,0.15)",color:fecha.includes("🟢")?"#C41E3A":"var(--text)",fontWeight:fecha.includes("🟢")?700:400}}>{fecha}</td>
+                  <td style={{padding:"5px 10px",borderBottom:"1px solid rgba(196,30,58,0.15)",textAlign:"center",fontWeight:dia.includes("sin")?700:400,color:dia.includes("sin")?"#2D8A3E":"var(--text)"}}>{dia}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{fontSize:12,color:"var(--muted)",marginTop:6}}>🟢 Jornadas unificadas: el jugador elige cualquier equipo de los dos días. El pick debe enviarse antes del primer día.</div>
+        </div>
+
         <div style={{marginTop:12,background:"rgba(196,30,58,0.08)",borderRadius:10,padding:"10px 14px"}}>
           <div style={{fontWeight:700,marginBottom:6}}>💰 Distribución del pozo Survivor:</div>
           <div style={{fontSize:14}}>🥇 85% → Ganador · 🥈 5% → 2do Puesto · ❤️ 5% → Hogar AMYSER · ⚙️ 5% → Admin</div>
