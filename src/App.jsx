@@ -712,9 +712,12 @@ export default function App() {
   async function saveFinalResult(data) {
     setFinalResults(data);
     try {
-      await sb.from("resultados_finales").delete().eq("id", 1);
-      await sb.from("resultados_finales").insert({id:1, ...data});
-    } catch(e) { console.error("Error guardando resultado final:", e); }
+      const { error: delErr } = await sb.from("resultados_finales").delete().eq("id", 1);
+      if (delErr) { alert("Error delete: " + delErr.message); return; }
+      const { error: insErr } = await sb.from("resultados_finales").insert({id:1, ...data});
+      if (insErr) { alert("Error insert: " + insErr.message); return; }
+      alert("✅ Guardado correctamente en Supabase");
+    } catch(e) { alert("Error: " + e.message); }
   }
 
   async function addUser(newUser) {
