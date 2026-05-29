@@ -552,6 +552,12 @@ export default function App() {
           if (cfg) setTestModeState(cfg.value === "true");
         } catch(e) {}
 
+        // Cargar survivorTestDate global
+        try {
+          const { data: scfg } = await sb.from("config").select("*").eq("key","survivorTestDate").single();
+          if (scfg) setSurvivorTestDate(scfg.value);
+        } catch(e) {}
+
         setDbReady(true);
       } catch(e) {
         console.error("Error cargando Supabase:", e);
@@ -2108,10 +2114,29 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
-  const [survivorTest, setSurvivorTest] = React.useState(false);
-  const [testDateIdx, setTestDateIdx] = React.useState(1);
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
-  const today = survivorTest ? groupDates[testDateIdx] || "2026-06-13" : realToday;
+  // survivorTestDate viene de Supabase (config) y se comparte con todos
+  const survivorTest = !!survivorTestDate && survivorTestDate !== "off";
+  const today = survivorTest ? survivorTestDate : realToday;
+
+  async function toggleSurvivorTest() {
+    if (survivorTest) {
+      setSurvivorTestDate("off");
+      await sb.from("config").upsert({key:"survivorTestDate", value:"off"},{onConflict:"key"});
+    } else {
+      const date = groupDates[1] || "2026-06-13";
+      setSurvivorTestDate(date);
+      await sb.from("config").upsert({key:"survivorTestDate", value:date},{onConflict:"key"});
+    }
+  }
+
+  async function advanceTestDate(dir) {
+    const idx = groupDates.indexOf(today);
+    const newIdx = Math.max(0, Math.min(groupDates.length-1, idx+dir));
+    const newDate = groupDates[newIdx];
+    setSurvivorTestDate(newDate);
+    await sb.from("config").upsert({key:"survivorTestDate", value:newDate},{onConflict:"key"});
+  }
 
   // Jornadas unificadas: fecha real -> fecha clave de la jornada
   const UNIFIED_DAYS = {
@@ -2228,15 +2253,15 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
           {isAdmin && (
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-              <button onClick={()=>setSurvivorTest(t=>!t)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",
+              <button onClick={toggleSurvivorTest} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",
                 background:survivorTest?"#2a1a00":"transparent",borderColor:survivorTest?"#F5C518":"rgba(255,255,255,0.3)",color:survivorTest?"#F5C518":"#E8EDF5"}}>
                 {survivorTest?"🔓 Prueba ON":"🧪 Modo Prueba"}
               </button>
               {survivorTest && (
                 <>
-                  <button onClick={()=>setTestDateIdx(i=>Math.max(0,i-1))} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>◀</button>
+                  <button onClick={()=>advanceTestDate(-1)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>◀</button>
                   <span style={{color:"#F5C518",fontSize:13,fontWeight:700}}>{today}</span>
-                  <button onClick={()=>setTestDateIdx(i=>Math.min(groupDates.length-1,i+1))} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>▶</button>
+                  <button onClick={()=>advanceTestDate(1)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>▶</button>
                 </>
               )}
             </div>
