@@ -542,7 +542,12 @@ export default function App() {
 
         // Resultado final
         const { data: fr } = await sb.from("resultados_finales").select("*").eq("id",1).single();
-        if (fr) setFinalResults(fr);
+        if (fr) setFinalResults({
+          champion: fr.champion||null,
+          runnerUp: fr.runner_up||null,
+          third: fr.third||null,
+          fourth: fr.fourth||null,
+        });
 
         // Pagos (bolsa)
         const { data: pagos } = await sb.from("pagos").select("*");
@@ -714,9 +719,14 @@ export default function App() {
     try {
       const { error: delErr } = await sb.from("resultados_finales").delete().eq("id", 1);
       if (delErr) { alert("Error delete: " + delErr.message); return; }
-      const { error: insErr } = await sb.from("resultados_finales").insert({id:1, ...data});
+      const { error: insErr } = await sb.from("resultados_finales").insert({
+        id: 1,
+        champion: data.champion||null,
+        runner_up: data.runnerUp||null,
+        third: data.third||null,
+        fourth: data.fourth||null,
+      });
       if (insErr) { alert("Error insert: " + insErr.message); return; }
-      alert("✅ Guardado correctamente en Supabase");
     } catch(e) { alert("Error: " + e.message); }
   }
 
