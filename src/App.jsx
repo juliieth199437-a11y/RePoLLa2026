@@ -712,7 +712,8 @@ export default function App() {
   async function saveFinalResult(data) {
     setFinalResults(data);
     try {
-      await sb.from("resultados_finales").upsert({id:1, ...data},{onConflict:"id"});
+      await sb.from("resultados_finales").delete().eq("id", 1);
+      await sb.from("resultados_finales").insert({id:1, ...data});
     } catch(e) { console.error("Error guardando resultado final:", e); }
   }
 
