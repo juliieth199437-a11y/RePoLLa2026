@@ -541,7 +541,7 @@ export default function App() {
         }
 
         // Resultado final
-        const { data: fr } = await sb.from("final_results").select("*").eq("id",1).single();
+        const { data: fr } = await sb.from("resultados_finales").select("*").eq("id",1).single();
         if (fr) setFinalResults(fr);
 
         // Pagos (bolsa)
@@ -712,7 +712,7 @@ export default function App() {
   async function saveFinalResult(data) {
     setFinalResults(data);
     try {
-      await sb.from("final_results").upsert({id:1, ...data},{onConflict:"id"});
+      await sb.from("resultados_finales").upsert({id:1, ...data},{onConflict:"id"});
     } catch(e) { console.error("Error guardando resultado final:", e); }
   }
 
