@@ -2701,8 +2701,29 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
         </div>
       </div>
       <div>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>
-          👥 Estado de Pagos ({pagaron.length}/{participants.length})
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:8}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2}}>
+            👥 Estado de Pagos ({pagaron.length}/{participants.length})
+          </div>
+          {isAdmin && (
+            <button onClick={()=>{
+              const rows = [["Nombre","Apodo","Username","Tipo","RePoLLa","Survivor","Total"]];
+              participants.forEach(u => {
+                const p = pagos[u.username];
+                const rep = p?.valorRepolla || 0;
+                const sur = p?.valorSurvivor || 0;
+                rows.push([u.name, u.apodo||"", u.username, u.tipo, rep, sur, rep+sur]);
+              });
+              const csv = rows.map(r=>r.join(";")).join("\n");
+              const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = "pagos_repolla2026.csv";
+              a.click();
+            }} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #2D8A3E",background:"rgba(45,138,62,0.08)",color:"#2D8A3E",cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
+              📥 Exportar Excel
+            </button>
+          )}
         </div>
         {isAdmin && <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Como admin puedes marcar quién ha pagado tocando su nombre.</div>}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
