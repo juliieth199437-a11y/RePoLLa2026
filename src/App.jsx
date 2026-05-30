@@ -2699,10 +2699,7 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                   </div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
-                  <span style={{background:"#2D8A3E",color:"#fff",
-                      borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700}}>
-                    ✅ PAGÓ
-                  </span>
+
                   {isAdmin ? (
                     <div style={{display:"flex",alignItems:"center",gap:4}}>
                       <span style={{fontSize:12,color:"#6B7A99"}}>$</span>
