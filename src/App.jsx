@@ -2277,9 +2277,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
   async function markResult(username, date, result) {
     const pick = survivorPicks[username]?.[date];
     if (!pick) return;
-    const isDay1 = isJornada1(date);
     const isExcluded = EXCLUDED_SURVIVOR.includes(date);
-    const failed = result !== "win" && !isDay1 && !isExcluded;
+    const failed = result !== "win" && !isExcluded;
     setSurvivorPicks(prev => ({
       ...prev,
       [username]: {
@@ -2289,13 +2288,15 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
     }));
     try {
       await sb.from("survivor_picks").delete().eq("username", username).eq("date", date);
-      await sb.from("survivor_picks").insert({
+      const {error: mrErr} = await sb.from("survivor_picks").insert({
         username,
         date,
         team: pick.team,
         failed,
-        result
+        result,
+        match_id: date
       });
+      if (mrErr) alert("❌ Error marcando resultado: " + mrErr.message);
     } catch(e) { console.error("Error guardando resultado survivor:", e); }
   }
 
@@ -2499,8 +2500,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           </div>
           <div className="alert alert-info" style={{marginBottom:12,fontSize:14}}>
             Después de cada fecha marca si el equipo elegido ganó, empató o perdió.<br/>
-            ⚠️ Día 1 (Jun 11): nadie pierde vida aunque falle.<br/>
-            ⚠️ Día nulo: si TODOS los partidos empatan, nadie pierde vida.
+            ⚠️ Día nulo: si TODOS los partidos de una jornada empatan, nadie pierde vida.
           </div>
           {groupDates.filter(date => {
             return survivorUsers.some(u => survivorPicks[u.username]?.[date]);
@@ -2624,20 +2624,39 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
         </div>
       </div>
 
-      {/* Prize distribution */}
-      <div style={{background:"#FFFFFF",border:"1px solid var(--border)",borderRadius:14,padding:"18px 20px",marginBottom:20}}>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:14}}>🏆 Distribución del Premio</div>
+      {/* Prize distribution RePoLLa */}
+      <div style={{background:"#FFFFFF",border:"1px solid var(--border)",borderRadius:14,padding:"18px 20px",marginBottom:16}}>
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:14}}>🥬 Distribución Premio RePoLLa</div>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {[
-            {label:"🥇 1er Lugar (48%)", val:totalGeneral*0.48, color:"#FFD700"},
-            {label:"🥈 2do Lugar (25%)", val:totalGeneral*0.25, color:"#C0C0C0"},
-            {label:"🥉 3er Lugar (15%)", val:totalGeneral*0.15, color:"#CD7F32"},
-            {label:"🏆 Premios Sorpresa (3%)", val:totalGeneral*0.03, color:"#1B4F9E"},
-            {label:"❤️ Hogar AMYSER (5%)", val:totalGeneral*0.05, color:"#3B82F6"},
-            {label:"⚙️ Administración (4%)", val:totalGeneral*0.04, color:"#6B7A99"},
+            {label:"🥇 1er Lugar (48%)", val:totalRePoLLa*0.48, color:"#FFD700"},
+            {label:"🥈 2do Lugar (25%)", val:totalRePoLLa*0.25, color:"#C0C0C0"},
+            {label:"🥉 3er Lugar (15%)", val:totalRePoLLa*0.15, color:"#CD7F32"},
+            {label:"🏆 Premios Sorpresa (3%)", val:totalRePoLLa*0.03, color:"#1B4F9E"},
+            {label:"❤️ Hogar AMYSER (5%)", val:totalRePoLLa*0.05, color:"#C41E3A"},
+            {label:"⚙️ Administración (4%)", val:totalRePoLLa*0.04, color:"#6B7A99"},
           ].map((row,i) => (
             <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
               padding:"10px 14px",background:"#F8F9FC",borderRadius:10,border:"1px solid var(--border)"}}>
+              <div style={{fontSize:16,fontWeight:700,color:"#1A1A2E"}}>{row.label}</div>
+              <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:26,color:row.color}}>{fmt(row.val)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Prize distribution Survivor */}
+      <div style={{background:"#FFFFFF",border:"2px solid #C41E3A",borderRadius:14,padding:"18px 20px",marginBottom:20}}>
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#C41E3A",letterSpacing:2,marginBottom:14}}>🔥 Distribución Premio Survivor</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {[
+            {label:"🥇 Ganador (85%)", val:totalSurvivorReal*0.85, color:"#FFD700"},
+            {label:"🥈 2do Puesto (5%)", val:totalSurvivorReal*0.05, color:"#C0C0C0"},
+            {label:"❤️ Hogar AMYSER (5%)", val:totalSurvivorReal*0.05, color:"#C41E3A"},
+            {label:"⚙️ Administración (5%)", val:totalSurvivorReal*0.05, color:"#6B7A99"},
+          ].map((row,i) => (
+            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+              padding:"10px 14px",background:"rgba(196,30,58,0.04)",borderRadius:10,border:"1px solid rgba(196,30,58,0.15)"}}>
               <div style={{fontSize:16,fontWeight:700,color:"#1A1A2E"}}>{row.label}</div>
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:26,color:row.color}}>{fmt(row.val)}</div>
             </div>
