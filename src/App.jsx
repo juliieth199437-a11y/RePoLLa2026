@@ -2742,6 +2742,10 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                               const val = parseInt(e.target.value)||0;
                               setBolsa(prev => ({...prev, pagosManual: {...(prev.pagosManual||{}), [u.username]: val}}));
                             }}
+                            onBlur={async e => {
+                              const val = parseInt(e.target.value)||0;
+                              await sb.from("pagos").upsert({username:u.username, valor_repolla:val},{onConflict:"username"});
+                            }}
                             style={{width:80,fontSize:13,fontWeight:700,color:"#1B4F9E",
                               border:"1px solid #E0E6F0",borderRadius:6,padding:"2px 4px",
                               textAlign:"right",background:"#F8F9FC"}} />
@@ -2755,9 +2759,22 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                     {u.survivorEnabled && (
                       <div style={{textAlign:"right",borderLeft:"1px solid #E0E6F0",paddingLeft:10}}>
                         <div style={{fontSize:11,color:"#6B7A99",marginBottom:1}}>🔥 Survivor</div>
+                        {isAdmin ? (
+                          <input type="number"
+                            defaultValue={pagos[u.username]?.valorSurvivor||0}
+                            onBlur={async e => {
+                              const val = parseInt(e.target.value)||0;
+                              await sb.from("pagos").upsert({username:u.username, valor_survivor:val},{onConflict:"username"});
+                              setBolsa(prev => ({...prev, pagos:{...prev.pagos, [u.username]:{...prev.pagos[u.username], valorSurvivor:val}}}));
+                            }}
+                            style={{width:80,fontSize:13,fontWeight:700,color:"#C41E3A",
+                              border:"1px solid rgba(196,30,58,0.3)",borderRadius:6,padding:"2px 4px",
+                              textAlign:"right",background:"rgba(196,30,58,0.05)"}} />
+                        ) : (
                         <div style={{fontSize:13,color:"#C41E3A",fontWeight:700}}>
                           ${(pagos[u.username]?.valorSurvivor||0).toLocaleString("es-CO")}
                         </div>
+                        )}
                       </div>
                     )}
                   </div>
