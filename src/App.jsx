@@ -841,7 +841,7 @@ export default function App() {
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} />}
       </div>
     </div>
   );
@@ -1674,7 +1674,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [localResults, setLocalResults]=useState({});
   const [localGroupResults, setLocalGroupResults]=useState({});
@@ -1684,9 +1684,16 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
   async function borrarPronosticos(username, tipo) {
     try {
+      const esAdmin = username === "admin";
       if (tipo==="todo" || tipo==="partidos") {
         await sb.from("predictions").delete().eq("username",username);
         setPredictions(prev => { const n={...prev}; delete n[username]; return n; });
+        if (esAdmin) {
+          await sb.from("results").delete().neq("match_id","__never__");
+          await sb.from("group_results").delete().neq("group","__never__");
+          setResults({});
+          setGroupResults({});
+        }
       }
       if (tipo==="todo" || tipo==="grupos") {
         await sb.from("group_picks").delete().eq("username",username);
@@ -1695,16 +1702,19 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
       if (tipo==="todo" || tipo==="fase3") {
         await sb.from("pronosticos_finales").delete().eq("username",username);
         setFinalPicks(prev => { const n={...prev}; delete n[username]; return n; });
+        if (esAdmin) {
+          await sb.from("resultados_finales").delete().eq("id",1);
+          setFinalResults({});
+        }
       }
       if (tipo==="todo" || tipo==="survivor") {
         await sb.from("survivor_picks").delete().eq("username",username);
         setSurvivorPicks(prev => { const n={...prev}; delete n[username]; return n; });
       }
-      setDeleteMsg(`✅ Pronósticos de ${username} eliminados`);
+      setDeleteMsg(`✅ Datos de ${username} eliminados`);
       setResetKey(k => k+1);
       setTimeout(()=>setDeleteMsg(""),3000);
     } catch(e) {
-      alert("❌ Excepción: " + e.message);
       setDeleteMsg("❌ Error al eliminar: "+e.message);
     }
     setDeletingUser(null);
