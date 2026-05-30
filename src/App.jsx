@@ -2573,7 +2573,7 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
   }, 0);
   const totalSurvivorReal = survivorJugadores.reduce((sum, u) => {
     const p = pagos[u.username];
-    return sum + (p?.valorSurvivor || 200000);
+    return sum + (p?.valorSurvivor || 0);
   }, 0);
   const totalGeneralReal = totalRePoLLa + totalSurvivorReal;
   const totalGeneral = totalGeneralReal;
@@ -2727,7 +2727,7 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                   <div style={{fontSize:13,color:"#6B7A99",marginTop:2}}>
                     {u.tipo==="repollo"?"🥬 RePoLLo":"🆕 NueVón"}
                     {u.survivorEnabled?" · 🔥 Survivor":""}
-                    {u.fechaEspecial?" · 📅 Tarde":""}
+                    {""}
                   </div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
