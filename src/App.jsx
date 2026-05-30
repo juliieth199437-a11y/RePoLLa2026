@@ -745,7 +745,7 @@ export default function App() {
         username: u.username,
         pago_repolla: true,
         pago_survivor: u.survivorEnabled,
-        valor_repolla: u.valorPagado - (u.survivorEnabled ? (u.valorSurvivor||200000) : 0),
+        valor_repolla: u.valorPagado,
         valor_survivor: u.survivorEnabled ? (u.valorSurvivor||200000) : 0
       },{onConflict:"username"});
     } catch(e) { console.error("Error creando usuario:", e); }
@@ -2734,27 +2734,9 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                   <div style={{display:"flex",gap:10,alignItems:"center"}}>
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:11,color:"#6B7A99",marginBottom:1}}>🥬 RePoLLa</div>
-                      {isAdmin ? (
-                        <div style={{display:"flex",alignItems:"center",gap:2}}>
-                          <span style={{fontSize:11,color:"#6B7A99"}}>$</span>
-                          <input type="number" value={valorFinal}
-                            onChange={e => {
-                              const val = parseInt(e.target.value)||0;
-                              setBolsa(prev => ({...prev, pagosManual: {...(prev.pagosManual||{}), [u.username]: val}}));
-                            }}
-                            onBlur={async e => {
-                              const val = parseInt(e.target.value)||0;
-                              await sb.from("pagos").upsert({username:u.username, valor_repolla:val},{onConflict:"username"});
-                            }}
-                            style={{width:80,fontSize:13,fontWeight:700,color:"#1B4F9E",
-                              border:"1px solid #E0E6F0",borderRadius:6,padding:"2px 4px",
-                              textAlign:"right",background:"#F8F9FC"}} />
-                        </div>
-                      ) : (
-                        paid && <div style={{fontSize:13,color:"#1B4F9E",fontWeight:700}}>
-                          ${(pagos[u.username]?.valorRepolla||valorFinal).toLocaleString("es-CO")}
-                        </div>
-                      )}
+                      <div style={{fontSize:13,color:"#1B4F9E",fontWeight:700}}>
+                        ${(pagos[u.username]?.valorRepolla || getValorRepolla(u)).toLocaleString("es-CO")}
+                      </div>
                     </div>
                     {u.survivorEnabled && (
                       <div style={{textAlign:"right",borderLeft:"1px solid #E0E6F0",paddingLeft:10}}>
