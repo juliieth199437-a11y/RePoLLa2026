@@ -2260,14 +2260,15 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
     }));
     try {
       await sb.from("survivor_picks").delete().eq("username", currentUser.username).eq("date", today);
-      await sb.from("survivor_picks").insert({
+      const {error: spErr} = await sb.from("survivor_picks").insert({
         username: currentUser.username,
         date: today,
         team: selectedTeam,
         failed: false,
         result: null
       });
-    } catch(e) { console.error("Error guardando survivor pick:", e); }
+      if (spErr) alert("❌ Error guardando survivor: " + spErr.message);
+    } catch(e) { alert("❌ Excepción survivor: " + e.message); }
     setSaved(true);
     setSelectedTeam("");
     setTimeout(() => setSaved(false), 2500);
@@ -2507,7 +2508,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           }).map(date => (
             <div key={date} style={{marginBottom:14,background:"#F8F9FC",borderRadius:12,padding:"14px 16px",border:"1px solid var(--border)"}}>
               <div style={{fontWeight:700,fontSize:15,marginBottom:10,color:"#1B4F9E"}}>
-                📅 {fmtD(date)} {date==="2026-06-11"?<span style={{fontSize:14,color:"#1B4F9E"}}>· Día 1 (sin eliminaciones)</span>:""}
+                📅 {fmtD(date)}
               </div>
               {survivorUsers.filter(u => survivorPicks[u.username]?.[date]).map(u => {
                 const pick = survivorPicks[u.username][date];
@@ -2878,16 +2879,18 @@ function MiPerfilTab({currentUser, updateUser}) {
           <>
             <div style={{display:"grid", gap:12, marginBottom:20}}>
               {[
-                {label:"Apodo", value:form.apodo, icon:"🎯"},
+                {label:"Nombre", value:currentUser.name, icon:"👤", readonly:true},
+                {label:"Apodo", value:form.apodo, icon:"🎯", readonly:true},
                 {label:"Email", value:form.email, icon:"📧"},
                 {label:"Celular (WhatsApp)", value:form.phone, icon:"📱"},
                 {label:"Ciudad", value:form.city, icon:"🏙️"},
               ].map(f => (
                 <div key={f.label} style={{display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
-                  background:"rgba(27,79,158,0.06)", borderRadius:10}}>
+                  background:f.readonly?"rgba(27,79,158,0.03)":"rgba(27,79,158,0.06)", borderRadius:10,
+                  border:f.readonly?"1px solid var(--border)":"none"}}>
                   <span style={{fontSize:20}}>{f.icon}</span>
                   <div>
-                    <div style={{fontSize:11, color:"var(--muted)", fontWeight:700}}>{f.label}</div>
+                    <div style={{fontSize:11, color:"var(--muted)", fontWeight:700}}>{f.label}{f.readonly&&<span style={{fontSize:10,color:"var(--muted)",fontWeight:400,marginLeft:4}}>(no editable)</span>}</div>
                     <div style={{fontSize:15, fontWeight:600, color:"var(--text)"}}>{f.value||<span style={{color:"var(--muted)",fontStyle:"italic"}}>Sin datos</span>}</div>
                   </div>
                 </div>
@@ -2901,9 +2904,12 @@ function MiPerfilTab({currentUser, updateUser}) {
           <>
             <div style={{display:"grid", gap:14, marginBottom:20}}>
               <div>
-                <label style={labelStyle}>🎯 Apodo</label>
-                <input style={fieldStyle} value={form.apodo}
-                  onChange={e=>setForm(f=>({...f, apodo:e.target.value}))} />
+                <label style={labelStyle}>👤 Nombre</label>
+                <input style={{...fieldStyle, background:"rgba(27,79,158,0.04)", color:"var(--muted)"}} value={currentUser.name} disabled />
+              </div>
+              <div>
+                <label style={labelStyle}>🎯 Apodo <span style={{fontSize:11,fontWeight:400,color:"var(--muted)"}}>(no editable)</span></label>
+                <input style={{...fieldStyle, background:"rgba(27,79,158,0.04)", color:"var(--muted)"}} value={form.apodo} disabled />
               </div>
               <div>
                 <label style={labelStyle}>📧 Email</label>
@@ -3079,7 +3085,7 @@ function ReglasTab() {
             </thead>
             <tbody>
               {[
-                ["Jun 11 + Jun 12 🟢","Día 1 (sin eliminaciones)"],
+                ["Jun 11 + Jun 12 🟢","Día 1"],
                 ["Jun 13","Día 2"],["Jun 14","Día 3"],["Jun 15","Día 4"],
                 ["Jun 16","Día 5"],["Jun 17","Día 6"],["Jun 18","Día 7"],
                 ["Jun 19","Día 8"],["Jun 20","Día 9"],["Jun 21","Día 10"],
