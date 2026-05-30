@@ -2209,7 +2209,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
   function getLivesLost(username) {
     const picks = survivorPicks[username] || {};
     return Object.entries(picks).filter(([date, p]) => 
-      p.failed && !isJornada1(date) && !EXCLUDED_SURVIVOR.includes(date)
+      p.failed && !EXCLUDED_SURVIVOR.includes(date)
     ).length;
   }
 
@@ -2319,8 +2319,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           )}
         </div>
         <div style={{fontSize:15,color:"#E8EDF5",marginTop:4,lineHeight:1.7}}>
-          1 equipo por fecha · Solo gana el que <strong>GANA</strong> · Empate o derrota = pierdes vida<br/>
-          <strong>2 vidas</strong> · No repites equipos · Día 1 y días nulos: nadie muere pero el equipo queda usado
+          Elige 1 equipo por jornada · Solo gana quien <strong>GANA</strong> en 90 minutos · Empate o derrota = pierdes vida<br/>
+          <strong>2 vidas</strong> · No repites equipos · Días nulos: si todos los partidos empatan, nadie pierde vida
         </div>
         <div style={{display:"flex",gap:10,marginTop:12,flexWrap:"wrap"}}>
           <div style={{background:"#E8F5E9",border:"1px solid var(--green)",borderRadius:8,padding:"8px 16px",textAlign:"center"}}>
@@ -2699,12 +2699,10 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                   </div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
-                  <button onClick={()=>togglePago(u.username)}
-                    style={{background:paid?"#2D8A3E":"#C41E3A",color:"#fff",border:"none",
-                      borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700,cursor:isAdmin?"pointer":"default",
-                      opacity:isAdmin?1:0.7}}>
-                    {paid?"✅ PAGÓ":"⏳ PENDIENTE"}
-                  </button>
+                  <span style={{background:"#2D8A3E",color:"#fff",
+                      borderRadius:8,padding:"4px 10px",fontSize:13,fontWeight:700}}>
+                    ✅ PAGÓ
+                  </span>
                   {isAdmin ? (
                     <div style={{display:"flex",alignItems:"center",gap:4}}>
                       <span style={{fontSize:12,color:"#6B7A99"}}>$</span>
@@ -3043,13 +3041,14 @@ function ReglasTab() {
       {/* Survivor */}
       <div style={{...cardStyle,border:"2px solid #C41E3A"}}>
         <div style={{...titleStyle,color:"#C41E3A"}}>🔥 SURVIVOR</div>
-        <div style={itemStyle}><strong>Inscripción:</strong> $200.000 COP adicionales.</div>
-        <div style={itemStyle}>Elige <strong>1 equipo por jornada</strong> — ese equipo debe ganar en 90 minutos.</div>
-        <div style={itemStyle}>No puedes repetir equipo durante todo el torneo.</div>
-        <div style={itemStyle}>Cada participante inicia con <strong>2 vidas ❤️❤️</strong></div>
-        <div style={itemStyle}>Si el equipo NO gana → pierdes una vida 🖤</div>
-        <div style={itemStyle}>Si pierdes ambas vidas → quedas eliminado.</div>
+        <div style={itemStyle}>Debes escoger <strong>1 equipo por jornada</strong> que gane su partido en los 90 minutos reglamentarios.</div>
+        <div style={itemStyle}>Cada participante inicia con <strong>2 vidas ❤️❤️</strong>. Perderás una vida cada vez que el equipo elegido empate o pierda.</div>
+        <div style={itemStyle}>Una vez se pierdan ambas vidas, quedarás eliminado. El objetivo es <strong>sobrevivir más tiempo que los demás</strong> usando estratégicamente los equipos — ningún equipo puede repetirse durante todo el torneo.</div>
+        <div style={itemStyle}>Como primer ítem de desempate, se tendrá en cuenta <strong>quién duró más tiempo sin perder una vida.</strong></div>
         <div style={{...itemStyle,borderColor:"#F5C518"}}>
+          <strong>Jornadas unificadas:</strong> Junio 11+12, Junio 28+29 y Julio 9+10 cuentan como una sola jornada, permitiendo escoger entre más partidos y equipos disponibles. En semifinales y final, cada partido cuenta como jornada individual. El partido por el tercer puesto <strong>no aplica</strong> para el Survivor.
+        </div>
+        <div style={{...itemStyle,borderColor:"#C41E3A"}}>
           <strong>Día Nulo:</strong> Si TODOS los partidos de una jornada terminan empatados, nadie pierde vida (pero el equipo queda usado).
         </div>
         {/* Tabla de jornadas */}
