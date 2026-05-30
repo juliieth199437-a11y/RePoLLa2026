@@ -780,12 +780,10 @@ export default function App() {
     .sort((a,b)=>b.score-a.score);
 
   if (!currentUser) return <LoginScreen login={login} />;
-  if (currentUser.mustChangePassword && !currentUser.isAdmin) return (
-    <ChangePasswordScreen
-      currentUser={currentUser}
-      changePassword={changePassword}
-    />
-  );
+  // Cambio de clave desactivado temporalmente
+  // if (currentUser.mustChangePassword && !currentUser.isAdmin) return (
+  //   <ChangePasswordScreen currentUser={currentUser} changePassword={changePassword} />
+  // );
 
   const navItems = currentUser.isAdmin ? [
     {key:"admin", label:"⚙️ Admin"},
@@ -2265,7 +2263,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
         date: today,
         team: selectedTeam,
         failed: false,
-        result: null
+        result: null,
+        match_id: today
       });
       if (spErr) alert("❌ Error guardando survivor: " + spErr.message);
     } catch(e) { alert("❌ Excepción survivor: " + e.message); }
