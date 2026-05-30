@@ -1684,31 +1684,26 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
   async function borrarPronosticos(username, tipo) {
     try {
-      alert(`🔍 Iniciando borrado de ${tipo} para ${username}`);
       if (tipo==="todo" || tipo==="partidos") {
-        const {error:e1} = await sb.from("predictions").delete().eq("username",username);
-        if (e1) { alert("❌ Error predictions: " + e1.message); return; }
+        await sb.from("predictions").delete().eq("username",username);
         setPredictions(prev => { const n={...prev}; delete n[username]; return n; });
-        alert("✅ predictions borrado OK");
       }
       if (tipo==="todo" || tipo==="grupos") {
-        const {error:e2} = await sb.from("group_picks").delete().eq("username",username);
-        if (e2) { alert("❌ Error group_picks: " + e2.message); return; }
+        await sb.from("group_picks").delete().eq("username",username);
         setGroupPicks(prev => { const n={...prev}; delete n[username]; return n; });
       }
       if (tipo==="todo" || tipo==="fase3") {
-        const {error:e3} = await sb.from("pronosticos_finales").delete().eq("username",username);
-        if (e3) { alert("❌ Error pronosticos_finales: " + e3.message); return; }
+        await sb.from("pronosticos_finales").delete().eq("username",username);
         setFinalPicks(prev => { const n={...prev}; delete n[username]; return n; });
       }
       if (tipo==="todo" || tipo==="survivor") {
-        const {error:e4} = await sb.from("survivor_picks").delete().eq("username",username);
-        if (e4) { alert("❌ Error survivor_picks: " + e4.message); return; }
+        await sb.from("survivor_picks").delete().eq("username",username);
         setSurvivorPicks(prev => { const n={...prev}; delete n[username]; return n; });
       }
       setDeleteMsg(`✅ Pronósticos de ${username} eliminados`);
       setResetKey(k => k+1);
       alert("✅ Todo borrado correctamente");
+      window.location.reload();
       setTimeout(()=>setDeleteMsg(""),3000);
     } catch(e) {
       alert("❌ Excepción: " + e.message);
