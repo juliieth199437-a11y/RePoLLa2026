@@ -446,6 +446,7 @@ export default function App() {
   const [predictions, setPredictions] = useState({});
   const [groupPicks, setGroupPicks] = useState({});
   const [finalPicks, setFinalPicks] = useState({});
+  const [resetKey, setResetKey] = useState(0);
   const [results, setResults] = useState({});
   const [groupResults, setGroupResults] = useState({});
   const [finalResults, setFinalResults] = useState({});
@@ -828,11 +829,11 @@ export default function App() {
         ))}
       </nav>
       <div className="content">
-        {tab==="hoy" && <HoyTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
-        {tab==="manana" && <MananaTab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
+        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
+        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} testMode={testMode} setTestMode={setTestMode} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} />}
-        {tab==="fase1" && <Fase1Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} testMode={testMode} />}
-        {tab==="fase2" && <Fase2Tab currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
+        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} testMode={testMode} />}
+        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
         {tab==="fase3" && <Fase3Tab currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} />}
         {tab==="ranking" && <RankingTab leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="pronosticos" && <VerPronosticosTab users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} testMode={testMode} setTestMode={currentUser.isAdmin ? setTestMode : null} />}
@@ -840,7 +841,7 @@ export default function App() {
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} />}
       </div>
     </div>
   );
@@ -1673,7 +1674,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [localResults, setLocalResults]=useState({});
   const [localGroupResults, setLocalGroupResults]=useState({});
@@ -1700,6 +1701,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         setSurvivorPicks(prev => { const n={...prev}; delete n[username]; return n; });
       }
       setDeleteMsg(`✅ Pronósticos de ${username} eliminados`);
+      setResetKey(k => k+1);
       setTimeout(()=>setDeleteMsg(""),3000);
     } catch(e) {
       setDeleteMsg("❌ Error al eliminar: "+e.message);
@@ -2698,31 +2700,37 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                     {u.fechaEspecial?" · 📅 Tarde":""}
                   </div>
                 </div>
-                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
-
-                  {isAdmin ? (
-                    <div style={{display:"flex",alignItems:"center",gap:4}}>
-                      <span style={{fontSize:12,color:"#6B7A99"}}>$</span>
-                      <input
-                        type="number"
-                        value={valorFinal}
-                        onChange={e => {
-                          const val = parseInt(e.target.value)||0;
-                          setBolsa(prev => ({
-                            ...prev,
-                            pagosManual: {...(prev.pagosManual||{}), [u.username]: val}
-                          }));
-                        }}
-                        style={{width:90,fontSize:13,fontWeight:700,color:"#1B4F9E",
-                          border:"1px solid #E0E6F0",borderRadius:6,padding:"2px 4px",
-                          textAlign:"right",background:"#F8F9FC"}}
-                      />
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:11,color:"#6B7A99",marginBottom:1}}>🥬 RePoLLa</div>
+                      {isAdmin ? (
+                        <div style={{display:"flex",alignItems:"center",gap:2}}>
+                          <span style={{fontSize:11,color:"#6B7A99"}}>$</span>
+                          <input type="number" value={valorFinal}
+                            onChange={e => {
+                              const val = parseInt(e.target.value)||0;
+                              setBolsa(prev => ({...prev, pagosManual: {...(prev.pagosManual||{}), [u.username]: val}}));
+                            }}
+                            style={{width:80,fontSize:13,fontWeight:700,color:"#1B4F9E",
+                              border:"1px solid #E0E6F0",borderRadius:6,padding:"2px 4px",
+                              textAlign:"right",background:"#F8F9FC"}} />
+                        </div>
+                      ) : (
+                        paid && <div style={{fontSize:13,color:"#1B4F9E",fontWeight:700}}>
+                          ${(pagos[u.username]?.valorRepolla||valorFinal).toLocaleString("es-CO")}
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    paid && <div style={{fontSize:13,color:"#2D8A3E",fontWeight:700}}>
-                      ${valorFinal.toLocaleString("es-CO")}
-                    </div>
-                  )}
+                    {u.survivorEnabled && (
+                      <div style={{textAlign:"right",borderLeft:"1px solid #E0E6F0",paddingLeft:10}}>
+                        <div style={{fontSize:11,color:"#6B7A99",marginBottom:1}}>🔥 Survivor</div>
+                        <div style={{fontSize:13,color:"#C41E3A",fontWeight:700}}>
+                          ${(pagos[u.username]?.valorSurvivor||0).toLocaleString("es-CO")}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
