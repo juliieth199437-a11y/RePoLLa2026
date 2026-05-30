@@ -2569,7 +2569,7 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
   const survivorJugadores = participants.filter(u => u.survivorEnabled && u.pagoSurvivor && pagos[u.username]);
   const totalRePoLLa = pagaron.reduce((sum, u) => {
     const p = pagos[u.username];
-    return sum + (p?.valorRepolla || getValorRepolla(u));
+    return sum + (p?.valorRepolla || 0);
   }, 0);
   const totalSurvivorReal = survivorJugadores.reduce((sum, u) => {
     const p = pagos[u.username];
@@ -2734,9 +2734,22 @@ function BolsaTab({users, bolsa, setBolsa, isAdmin}) {
                   <div style={{display:"flex",gap:10,alignItems:"center"}}>
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:11,color:"#6B7A99",marginBottom:1}}>🥬 RePoLLa</div>
-                      <div style={{fontSize:13,color:"#1B4F9E",fontWeight:700}}>
-                        ${(pagos[u.username]?.valorRepolla || getValorRepolla(u)).toLocaleString("es-CO")}
-                      </div>
+                      {isAdmin ? (
+                        <input type="number"
+                          defaultValue={pagos[u.username]?.valorRepolla || getValorRepolla(u)}
+                          onBlur={async e => {
+                            const val = parseInt(e.target.value)||0;
+                            await sb.from("pagos").upsert({username:u.username, valor_repolla:val},{onConflict:"username"});
+                            setBolsa(prev => ({...prev, pagos:{...prev.pagos, [u.username]:{...prev.pagos[u.username], valorRepolla:val}}}));
+                          }}
+                          style={{width:90,fontSize:13,fontWeight:700,color:"#1B4F9E",
+                            border:"1px solid #E0E6F0",borderRadius:6,padding:"2px 4px",
+                            textAlign:"right",background:"#F8F9FC"}} />
+                      ) : (
+                        <div style={{fontSize:13,color:"#1B4F9E",fontWeight:700}}>
+                          ${(pagos[u.username]?.valorRepolla || getValorRepolla(u)).toLocaleString("es-CO")}
+                        </div>
+                      )}
                     </div>
                     {u.survivorEnabled && (
                       <div style={{textAlign:"right",borderLeft:"1px solid #E0E6F0",paddingLeft:10}}>
