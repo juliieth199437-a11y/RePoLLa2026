@@ -934,6 +934,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, testMode})
   const [sub, setSub] = useState("dieciseisavos");
   const subPhases = [
     {key:"dieciseisavos", label:"Dieciseisavos"},
+    {key:"octavos", label:"Octavos"},
     {key:"cuartos", label:"Cuartos de Final"},
     {key:"semis", label:"Semifinales"},
     {key:"tercer", label:"3er y 4to Puesto"},
