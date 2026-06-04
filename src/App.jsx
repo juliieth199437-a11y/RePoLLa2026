@@ -2264,6 +2264,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, testMode}
 // ============================================================
 function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testMode, setTestMode, survivorTestDate, setSurvivorTestDate}) {
   const isAdmin = currentUser.isAdmin;
+  const [survivorAdminTab, setSurvivorAdminTab] = useState("porCalificar");
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
@@ -2603,18 +2604,12 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
             });
             const porCalificar = allPicks.filter(x => !x.pick.result);
             const calificados = allPicks.filter(x => !!x.pick.result);
-
-            const [survivorAdminTab, setSurvivorAdminTab] = React.useState("porCalificar");
-
             const lista = survivorAdminTab==="porCalificar" ? porCalificar : calificados;
-
-            // Agrupar por fecha
             const byDate = {};
             lista.forEach(x => {
               if (!byDate[x.date]) byDate[x.date] = [];
               byDate[x.date].push(x);
             });
-
             return (
               <>
                 <div style={{display:"flex",gap:8,marginBottom:12}}>
