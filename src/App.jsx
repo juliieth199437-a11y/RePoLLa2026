@@ -1880,7 +1880,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         {/* Fase 3 - va directo al formulario de podio más abajo */}
         {mainPhase==="fase3" && (
           <div style={{padding:"16px",background:"rgba(27,79,158,0.06)",borderRadius:10,color:"var(--muted)",fontSize:15}}>
-            👇 El podio del torneo se ingresa en la sección <strong>"Resultados Finales del Torneo"</strong> más abajo.
+            👇 El podio del torneo se ingresa en la sección <strong>Resultados Finales del Torneo</strong> más abajo.
           </div>
         )}
 
@@ -1902,7 +1902,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           </div>
         )}
 
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {matches.map(match=>{
             const r=getR(match.id);
