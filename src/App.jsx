@@ -1739,12 +1739,36 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
   const [savedGroups, setSavedGroups]=useState({});
   const [savedFinal, setSavedFinal]=useState(false);
 
-  const subPhases=[
-    {key:"grupos",label:"Grupos"},{key:"dieciseisavos",label:"Dieciseisavos"},
-    {key:"cuartos",label:"Cuartos"},{key:"semis",label:"Semis"},
-    {key:"tercer",label:"3er Puesto"},{key:"final",label:"Final"},
+  // Pestañas principales Fase 1 / Fase 2 / Fase 3
+  const [mainPhase, setMainPhase] = useState("fase1");
+  const [resultTab, setResultTab] = useState("pendientes"); // pendientes | ingresados
+  const [fechaFiltro, setFechaFiltro] = useState("");
+
+  const fase1Matches = GROUP_MATCHES;
+  const fase2Phases = [
+    {key:"dieciseisavos",label:"Dieciseisavos"},
+    {key:"octavos",label:"Octavos"},
+    {key:"cuartos",label:"Cuartos"},
+    {key:"semis",label:"Semis"},
+    {key:"tercer",label:"3er Puesto"},
+    {key:"final",label:"Final"},
   ];
-  const matches = ALL_MATCHES.filter(m=>m.phase===matchPhase);
+  const fase2Matches = KNOCKOUT_MATCHES.filter(m=>m.phase===matchPhase);
+
+  // Fechas únicas de fase 1
+  const fechasGrupos = [...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
+
+  // Matches a mostrar según fase y filtros
+  let matchesToShow = [];
+  if (mainPhase==="fase1") {
+    matchesToShow = GROUP_MATCHES.filter(m => fechaFiltro ? m.date===fechaFiltro : true);
+  } else if (mainPhase==="fase2") {
+    matchesToShow = KNOCKOUT_MATCHES.filter(m=>m.phase===matchPhase);
+  }
+  // Separar pendientes e ingresados
+  const matchesPendientes = matchesToShow.filter(m=>!results[m.id]);
+  const matchesIngresados = matchesToShow.filter(m=>!!results[m.id]);
+  const matches = resultTab==="pendientes" ? matchesPendientes : matchesIngresados;
 
   function getR(matchId){return localResults[matchId]||results[matchId]||{};}
   function getGR(g){return localGroupResults[g]||groupResults[g]||{};}
@@ -1811,9 +1835,74 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>📋 Ingresar Resultados de Partidos</div>
         <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Ingresa el marcador y presiona 💾 Guardar. Verás ✅ cuando se haya guardado correctamente.</div>
-        <div className="phase-tabs">
-          {subPhases.map(p=><button key={p.key} className={`phase-tab ${matchPhase===p.key?"active":""}`} onClick={()=>setMatchPhase(p.key)}>{p.label}</button>)}
+
+        {/* Pestañas principales Fase 1 / Fase 2 / Fase 3 */}
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+          {[{k:"fase1",l:"⚽ Fase 1 — Grupos"},{k:"fase2",l:"⚡ Fase 2 — Eliminatorias"},{k:"fase3",l:"🏆 Fase 3 — Podio"}].map(f=>(
+            <button key={f.k} onClick={()=>{setMainPhase(f.k);setResultTab("pendientes");setFechaFiltro("");}}
+              style={{padding:"8px 16px",borderRadius:8,border:"2px solid",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
+                background:mainPhase===f.k?"#1B4F9E":"transparent",borderColor:mainPhase===f.k?"#1B4F9E":"var(--border)",
+                color:mainPhase===f.k?"#fff":"var(--text)"}}>
+              {f.l}
+            </button>
+          ))}
         </div>
+
+        {/* Sub-pestañas Fase 2 */}
+        {mainPhase==="fase2" && (
+          <div className="phase-tabs" style={{marginBottom:10}}>
+            {fase2Phases.map(p=>(
+              <button key={p.key} className={`phase-tab ${matchPhase===p.key?"active":""}`}
+                onClick={()=>setMatchPhase(p.key)}>{p.label}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtro por fecha Fase 1 */}
+        {mainPhase==="fase1" && (
+          <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:13,color:"var(--muted)",fontWeight:700}}>📅 Filtrar por fecha:</span>
+            <button onClick={()=>setFechaFiltro("")}
+              style={{padding:"4px 10px",borderRadius:6,border:"1px solid",fontSize:13,cursor:"pointer",fontFamily:"inherit",
+                background:fechaFiltro===""?"#1B4F9E":"transparent",borderColor:fechaFiltro===""?"#1B4F9E":"var(--border)",
+                color:fechaFiltro===""?"#fff":"var(--text)"}}>Todas</button>
+            {fechasGrupos.map(f=>(
+              <button key={f} onClick={()=>setFechaFiltro(f)}
+                style={{padding:"4px 10px",borderRadius:6,border:"1px solid",fontSize:13,cursor:"pointer",fontFamily:"inherit",
+                  background:fechaFiltro===f?"#1B4F9E":"transparent",borderColor:fechaFiltro===f?"#1B4F9E":"var(--border)",
+                  color:fechaFiltro===f?"#fff":"var(--text)"}}>
+                {f.slice(5).replace("-","/")}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Fase 3 - va directo al formulario de podio más abajo */}
+        {mainPhase==="fase3" && (
+          <div style={{padding:"16px",background:"rgba(27,79,158,0.06)",borderRadius:10,color:"var(--muted)",fontSize:15}}>
+            👇 El podio del torneo se ingresa en la sección <strong>"Resultados Finales del Torneo"</strong> más abajo.
+          </div>
+        )}
+
+        {/* Tabs Pendientes / Ingresados */}
+        {(mainPhase==="fase1" || mainPhase==="fase2") && (
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <button onClick={()=>setResultTab("pendientes")}
+              style={{padding:"6px 14px",borderRadius:8,border:"2px solid",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                background:resultTab==="pendientes"?"#C41E3A":"transparent",borderColor:resultTab==="pendientes"?"#C41E3A":"var(--border)",
+                color:resultTab==="pendientes"?"#fff":"var(--text)"}}>
+              ⏳ Pendientes ({matchesPendientes.length})
+            </button>
+            <button onClick={()=>setResultTab("ingresados")}
+              style={{padding:"6px 14px",borderRadius:8,border:"2px solid",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                background:resultTab==="ingresados"?"#2D8A3E":"transparent",borderColor:resultTab==="ingresados"?"#2D8A3E":"var(--border)",
+                color:resultTab==="ingresados"?"#fff":"var(--text)"}}>
+              ✅ Ingresados ({matchesIngresados.length})
+            </button>
+          </div>
+        )}
+
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {matches.map(match=>{
             const r=getR(match.id);
@@ -2499,46 +2588,89 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:8}}>
             ⚙️ Admin: Marcar resultados del Survivor
           </div>
-          <div className="alert alert-info" style={{marginBottom:12,fontSize:14}}>
-            Después de cada fecha marca si el equipo elegido ganó, empató o perdió.<br/>
+          <div style={{fontSize:14,color:"#6B7A99",marginBottom:12}}>
             ⚠️ Día nulo: si TODOS los partidos de una jornada empatan, nadie pierde vida.
           </div>
-          {groupDates.filter(date => {
-            return survivorUsers.some(u => survivorPicks[u.username]?.[date]);
-          }).map(date => (
-            <div key={date} style={{marginBottom:14,background:"#F8F9FC",borderRadius:12,padding:"14px 16px",border:"1px solid var(--border)"}}>
-              <div style={{fontWeight:700,fontSize:15,marginBottom:10,color:"#1B4F9E"}}>
-                📅 {fmtD(date)}
-              </div>
-              {survivorUsers.filter(u => survivorPicks[u.username]?.[date]).map(u => {
-                const pick = survivorPicks[u.username][date];
-                return (
-                  <div key={u.username} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap",padding:"8px 10px",background:"#FFFFFF",borderRadius:8}}>
-                    <span style={{fontSize:15,fontWeight:700,minWidth:120}}>{u.apodo||u.name}</span>
-                    <span style={{fontSize:15,color:"#6B7A99",display:"flex",alignItems:"center",gap:4}}>
-                      <FlagImg team={pick.team} size={16}/> {pick.team}
-                    </span>
-                    <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
-                      {[
-                        {r:"win", label:"✅ Ganó", color:"#2D8A3E"},
-                        {r:"draw", label:"➖ Empató", color:"#1B4F9E"},
-                        {r:"loss", label:"❌ Perdió", color:"#C41E3A"},
-                      ].map(({r,label,color}) => (
-                        <button key={r} onClick={()=>markResult(u.username, date, r)} style={{
-                          padding:"5px 10px",borderRadius:6,border:`1px solid ${color}`,
-                          fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
-                          background:pick.result===r?color:"transparent",
-                          color:pick.result===r?"#fff":color
-                        }}>{label}</button>
-                      ))}
-                    </div>
-                    {pick.failed && <span style={{fontSize:14,color:"#C41E3A",fontWeight:700}}>💀 -1 vida</span>}
-                    {pick.result==="win" && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✅ +0 vidas</span>}
+
+          {/* Pestañas Por calificar / Calificados */}
+          {(() => {
+            const allPicks = [];
+            groupDates.forEach(date => {
+              survivorUsers.forEach(u => {
+                const pick = survivorPicks[u.username]?.[date];
+                if (pick) allPicks.push({u, date, pick});
+              });
+            });
+            const porCalificar = allPicks.filter(x => !x.pick.result);
+            const calificados = allPicks.filter(x => !!x.pick.result);
+
+            const [survivorAdminTab, setSurvivorAdminTab] = React.useState("porCalificar");
+
+            const lista = survivorAdminTab==="porCalificar" ? porCalificar : calificados;
+
+            // Agrupar por fecha
+            const byDate = {};
+            lista.forEach(x => {
+              if (!byDate[x.date]) byDate[x.date] = [];
+              byDate[x.date].push(x);
+            });
+
+            return (
+              <>
+                <div style={{display:"flex",gap:8,marginBottom:12}}>
+                  <button onClick={()=>setSurvivorAdminTab("porCalificar")}
+                    style={{padding:"6px 14px",borderRadius:8,border:"2px solid",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                      background:survivorAdminTab==="porCalificar"?"#C41E3A":"transparent",
+                      borderColor:survivorAdminTab==="porCalificar"?"#C41E3A":"var(--border)",
+                      color:survivorAdminTab==="porCalificar"?"#fff":"var(--text)"}}>
+                    ⏳ Por calificar ({porCalificar.length})
+                  </button>
+                  <button onClick={()=>setSurvivorAdminTab("calificados")}
+                    style={{padding:"6px 14px",borderRadius:8,border:"2px solid",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                      background:survivorAdminTab==="calificados"?"#2D8A3E":"transparent",
+                      borderColor:survivorAdminTab==="calificados"?"#2D8A3E":"var(--border)",
+                      color:survivorAdminTab==="calificados"?"#fff":"var(--text)"}}>
+                    ✅ Calificados ({calificados.length})
+                  </button>
+                </div>
+
+                {Object.keys(byDate).sort().map(date => (
+                  <div key={date} style={{marginBottom:14,background:"#F8F9FC",borderRadius:12,padding:"14px 16px",border:"1px solid var(--border)"}}>
+                    <div style={{fontWeight:700,fontSize:15,marginBottom:10,color:"#1B4F9E"}}>📅 {fmtD(date)}</div>
+                    {byDate[date].map(({u, pick}) => (
+                      <div key={u.username} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap",padding:"8px 10px",background:"#FFFFFF",borderRadius:8}}>
+                        <span style={{fontSize:15,fontWeight:700,minWidth:120}}>{u.apodo||u.name}</span>
+                        <span style={{fontSize:14,color:"#6B7A99",display:"flex",alignItems:"center",gap:4}}>
+                          <FlagImg team={pick.team} size={16}/> {pick.team}
+                        </span>
+                        <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+                          {[
+                            {r:"win", label:"✅ Ganó", color:"#2D8A3E"},
+                            {r:"draw", label:"➖ Empató", color:"#1B4F9E"},
+                            {r:"loss", label:"❌ Perdió", color:"#C41E3A"},
+                          ].map(({r,label,color}) => (
+                            <button key={r} onClick={()=>markResult(u.username, date, r)} style={{
+                              padding:"5px 10px",borderRadius:6,border:`1px solid ${color}`,
+                              fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",
+                              background:pick.result===r?color:"transparent",
+                              color:pick.result===r?"#fff":color
+                            }}>{label}</button>
+                          ))}
+                        </div>
+                        {pick.failed && <span style={{fontSize:13,color:"#C41E3A",fontWeight:700}}>💀 -1 vida</span>}
+                        {pick.result==="win" && <span style={{fontSize:13,color:"#2D8A3E",fontWeight:700}}>✅ Vivo</span>}
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                ))}
+                {Object.keys(byDate).length===0 && (
+                  <div style={{textAlign:"center",padding:"24px",color:"#6B7A99",fontSize:15}}>
+                    {survivorAdminTab==="porCalificar" ? "✅ No hay picks pendientes de calificar" : "Aún no hay picks calificados"}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
