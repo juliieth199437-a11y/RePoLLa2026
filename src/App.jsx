@@ -1819,7 +1819,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
       </div>
 
       {/* Results */}
-      {adminSubTab==="fase1" && <div style={{marginBottom:24}}>
+      {adminSubTab==="fase1" && <>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>📋 Ingresar Resultados de Partidos</div>
         <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Ingresa el marcador y presiona 💾 Guardar. Verás ✅ cuando se haya guardado correctamente.</div>
         <div className="phase-tabs">
@@ -1875,9 +1875,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </div>}
+      </>
 
-      {adminSubTab==="clasif" && <div style={{marginBottom:24}}>
+      {adminSubTab==="clasif" && <>
       {/* Group results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🏆 Clasificación de Grupos (1° y 2°)</div>
@@ -1909,9 +1909,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </div>}
+      </>
 
-      {adminSubTab==="fase2" && <div style={{marginBottom:24}}>
+      {adminSubTab==="fase2" && <>
       {/* Final results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🥇 Resultados Finales del Torneo</div>
@@ -1937,9 +1937,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </div>}
+      </>
 
-      {adminSubTab==="fase3" && <div>
+      {adminSubTab==="fase3" && <>
       {/* Add user */}
       <div style={{marginBottom:24}}>
         {/* ── BORRAR PRONÓSTICOS (solo en modo prueba) ── */}
@@ -2120,9 +2120,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </div>}
+      </>
 
-      {adminSubTab==="partic" && <div>
+      {adminSubTab==="partic" && <>
       {/* Participants list */}
       <div>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>
@@ -2163,7 +2163,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           )}
         </div>
       </div>
-      </div>}
+      </>
     </div>
   );
 }
