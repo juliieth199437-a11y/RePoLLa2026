@@ -969,7 +969,21 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
   const [local, setLocal] = useState(finalPicks);
   const [saved, setSaved] = useState(false);
   const fields=[{k:"champion",l:"🥇 Campeón",pts:12},{k:"runnerUp",l:"🥈 Subcampeón",pts:9},{k:"third",l:"🥉 Tercer Puesto",pts:7},{k:"fourth",l:"4️⃣ Cuarto Puesto",pts:5}];
-  function doSave(){saveFinalPick(local);setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  const [fase3Error, setFase3Error] = useState("");
+  function doSave(){
+    if(!local.champion||!local.runnerUp||!local.third||!local.fourth){
+      setFase3Error("⚠️ Debes seleccionar los 4 puestos antes de enviar.");
+      setTimeout(()=>setFase3Error(""),3000);
+      return;
+    }
+    const picks = [local.champion,local.runnerUp,local.third,local.fourth];
+    if(new Set(picks).size < 4){
+      setFase3Error("⚠️ No puedes repetir equipos en el podio.");
+      setTimeout(()=>setFase3Error(""),3000);
+      return;
+    }
+    saveFinalPick(local);setSaved(true);setTimeout(()=>setSaved(false),2500);
+  }
   return (
     <div>
       <div className="phase-banner f3">🥇 Fase 3 · Pronósticos de Campeón — estos se ingresan al inicio del torneo y dan los puntos mayores</div>
@@ -991,6 +1005,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
           );
         })}
       </div>
+      {fase3Error && <div style={{color:"#C41E3A",fontWeight:700,fontSize:14,marginTop:8,textAlign:"center"}}>{fase3Error}</div>}
       {!finalPicks.champion && (
         <button className="btn-save" style={{marginTop:14}} onClick={doSave}>📨 Enviar pronósticos de campeón</button>
       )}
@@ -1154,9 +1169,20 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
   const [local, setLocal]=useState({});
   const [saved, setSaved]=useState({});
   function getPick(g){return local[g]||groupPicks[g]||{};}
+  const [errors, setErrors] = useState({});
   function handleSave(g){
     const p=getPick(g);
-    saveGroupPick(g,p.first||"",p.second||"");
+    if(!p.first||!p.second){
+      setErrors(prev=>({...prev,[g]:"⚠️ Debes seleccionar el 1° y 2° lugar antes de guardar."}));
+      setTimeout(()=>setErrors(prev=>({...prev,[g]:""})),3000);
+      return;
+    }
+    if(p.first===p.second){
+      setErrors(prev=>({...prev,[g]:"⚠️ El 1° y 2° lugar no pueden ser el mismo equipo."}));
+      setTimeout(()=>setErrors(prev=>({...prev,[g]:""})),3000);
+      return;
+    }
+    saveGroupPick(g,p.first,p.second);
     setSaved(prev=>({...prev,[g]:true}));
     setTimeout(()=>setSaved(prev=>({...prev,[g]:false})),2000);
   }
@@ -1179,6 +1205,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
                 <select value={pick.second||""} disabled={!!groupPicks[g]} onChange={e=>setLocal(p=>({...p,[g]:{...getPick(g),second:e.target.value}}))}>
                   <option value="">-- elige --</option>{teams.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
                 </select></div>
+              {errors[g] && <div style={{fontSize:13,color:"#C41E3A",fontWeight:700,marginBottom:6,textAlign:"center"}}>{errors[g]}</div>}
               {!groupPicks[g] && <button className="btn-save" style={{width:"100%"}} onClick={()=>handleSave(g)}>Guardar</button>}
               {groupPicks[g] && <div style={{fontSize:14,color:"#2D8A3E",fontWeight:700,textAlign:"center"}}>✓ Guardado</div>}
               {saved[g] && <div style={{fontSize:14,color:"#2D8A3E",textAlign:"center"}}>✓ ¡Guardado!</div>}
@@ -1195,6 +1222,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
 // ============================================================
 function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults}) {
   const [selected, setSelected] = React.useState(null);
+  const [rankSubTab, setRankSubTab] = React.useState("total");
   const me = leaderboard.find(u=>u.username===currentUser.username);
   const myPos = leaderboard.indexOf(me)+1;
 
@@ -1204,6 +1232,37 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
     const gPicks = groupPicks[selected]||{};
     const fPicks = finalPicks[selected]||{};
     const matchesWithPred = ALL_MATCHES.filter(m => preds[m.id]);
+    const fase1Matches = matchesWithPred.filter(m => m.fase===1 && m.phase==="grupos");
+    const fase2Matches = matchesWithPred.filter(m => m.fase===2);
+
+    // Calcular puntos por fase
+    const ptsFase1 = fase1Matches.reduce((s,m)=>s+(results[m.id]?calcMatchScore(m.id,preds[m.id],results[m.id]):0),0);
+    const ptsGrupos = Object.keys(gPicks).reduce((s,g)=>{
+      const res=groupResults[g]; if(!res||!gPicks[g]) return s;
+      const p=gPicks[g];
+      if(p.first===res.first&&p.second===res.second) return s+4;
+      if((p.first===res.first||p.first===res.second)&&(p.second===res.first||p.second===res.second)) return s+2;
+      if(p.first===res.first||p.first===res.second||p.second===res.first||p.second===res.second) return s+1;
+      return s;
+    },0);
+    const ptsFase2 = fase2Matches.reduce((s,m)=>s+(results[m.id]?calcMatchScore(m.id,preds[m.id],results[m.id]):0),0);
+    const ptsFase3 = (()=>{
+      if(!finalResults||!fPicks) return 0;
+      let p=0;
+      if(fPicks.champion&&finalResults.champion&&fPicks.champion===finalResults.champion) p+=12;
+      if(fPicks.runnerUp&&finalResults.runnerUp&&fPicks.runnerUp===finalResults.runnerUp) p+=9;
+      if(fPicks.third&&finalResults.third&&fPicks.third===finalResults.third) p+=7;
+      if(fPicks.fourth&&finalResults.fourth&&fPicks.fourth===finalResults.fourth) p+=5;
+      return p;
+    })();
+
+    const subTabs = [
+      {k:"total",l:"📊 Total"},
+      {k:"fase1",l:"⚽ Fase 1"},
+      {k:"fase2",l:"⚡ Fase 2"},
+      {k:"fase3",l:"🏆 Fase 3"},
+    ];
+
     return (
       <div>
         <button onClick={()=>setSelected(null)} style={{marginBottom:14,padding:"7px 14px",borderRadius:8,border:"1px solid var(--border)",background:"transparent",color:"var(--text)",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>
@@ -1218,78 +1277,124 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
           <div style={{marginLeft:"auto",fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"var(--blue)"}}>{u.score}<span style={{fontSize:14,marginLeft:3}}>pts</span></div>
         </div>
 
-        {/* Partidos */}
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>⚽ Pronósticos de Partidos</div>
-        {matchesWithPred.length===0 && <div style={{color:"var(--muted)",fontSize:14,marginBottom:12}}>Sin pronósticos registrados</div>}
-        {matchesWithPred.map(m => {
-          const pred = preds[m.id];
-          const res = results[m.id];
-          let pts = null;
-          if (pred && res) pts = calcMatchScore(m.id, pred, res);
-          return (
-            <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700}}>{m.home} vs {m.away}</div>
-                <div style={{fontSize:12,color:"var(--muted)"}}>{m.date} · {m.phase}</div>
-              </div>
-              <div style={{fontSize:14,fontWeight:700,color:"var(--blue)"}}>
-                Pronóstico: {pred.homeGoals}-{pred.awayGoals}{pred.penaltyWinner?` (pen: ${pred.penaltyWinner})`:""}
-              </div>
-              {res && <div style={{fontSize:13,color:"var(--muted)"}}>Real: {res.homeGoals}-{res.awayGoals}</div>}
-              {pts!==null && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:pts>0?"var(--green)":"var(--red)",minWidth:40,textAlign:"right"}}>{pts>0?`+${pts}`:0}</div>}
-              {!res && <div style={{fontSize:12,color:"var(--muted)"}}>Enviado</div>}
-            </div>
-          );
-        })}
+        {/* Subpestañas */}
+        <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+          {subTabs.map(t=>(
+            <button key={t.k} onClick={()=>setRankSubTab(t.k)}
+              style={{padding:"6px 14px",borderRadius:8,border:"2px solid",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                background:rankSubTab===t.k?"#1B4F9E":"transparent",
+                borderColor:rankSubTab===t.k?"#1B4F9E":"var(--border)",
+                color:rankSubTab===t.k?"#fff":"var(--text)"}}>
+              {t.l}
+            </button>
+          ))}
+        </div>
 
-        {/* Tabla B */}
-        {Object.keys(gPicks).length>0 && (
-          <div style={{marginTop:14}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>📊 Clasificación de Grupos</div>
-            <div style={{background:"var(--card)",borderRadius:10,padding:"12px 14px",border:"1px solid var(--border)",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
-              {Object.entries(gPicks).map(([group,pick])=>{
-                const res = groupResults[group];
-                let pts = 0;
-                if (res) {
-                  if (pick.first===res.first && pick.second===res.second) pts=4;
-                  else if (pick.first===res.second && pick.second===res.first) pts=2;
-                  else if (pick.first===res.first || pick.second===res.second || pick.first===res.second || pick.second===res.first) pts=1;
-                }
-                return (
-                  <div key={group} style={{fontSize:13,background:"rgba(27,79,158,0.06)",borderRadius:8,padding:"6px 10px"}}>
-                    <div style={{fontWeight:700}}>Grupo {group}</div>
-                    <div>1° {pick.first}</div>
-                    <div>2° {pick.second}</div>
-                    {res && <div style={{color:pts>0?"var(--green)":"var(--red)",fontWeight:700,marginTop:2}}>+{pts}pts</div>}
-                  </div>
-                );
-              })}
-            </div>
+        {/* Resumen de puntos por fase */}
+        {rankSubTab==="total" && (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            {[["⚽ Fase 1 Partidos",ptsFase1],["📊 Clasificación Grupos",ptsGrupos],["⚡ Fase 2",ptsFase2],["🏆 Fase 3",ptsFase3]].map(([l,p])=>(
+              <div key={l} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",border:"1px solid var(--border)",textAlign:"center"}}>
+                <div style={{fontSize:12,color:"var(--muted)",marginBottom:4}}>{l}</div>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:"var(--blue)"}}>{p} pts</div>
+              </div>
+            ))}
           </div>
+        )}
+
+        {/* Fase 1 — Partidos */}
+        {(rankSubTab==="total"||rankSubTab==="fase1") && (
+          <>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>⚽ Pronósticos de Partidos — Fase 1</div>
+            {fase1Matches.length===0 && <div style={{color:"var(--muted)",fontSize:14,marginBottom:12}}>Sin pronósticos registrados</div>}
+            {fase1Matches.map(m => {
+              const pred = preds[m.id]; const res = results[m.id];
+              let pts = null; if (pred && res) pts = calcMatchScore(m.id, pred, res);
+              return (
+                <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{m.home} vs {m.away}</div>
+                    <div style={{fontSize:12,color:"var(--muted)"}}>{m.date} · grupos</div>
+                    <div style={{fontSize:13,color:"var(--muted)"}}>Tu pronóstico: {pred.homeGoals}-{pred.awayGoals}{res&&` · Resultado: ${res.homeGoals}-${res.awayGoals}`}</div>
+                  </div>
+                  {pts!==null&&<div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:pts>0?"var(--green)":"#C41E3A"}}>+{pts}<span style={{fontSize:11,marginLeft:2}}>pts</span></div>}
+                  {!res&&<div style={{fontSize:13,color:"var(--muted)"}}>Pendiente</div>}
+                </div>
+              );
+            })}
+            {/* Clasificación grupos */}
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8,marginTop:12}}>📊 Clasificación de Grupos</div>
+            {Object.keys(gPicks).length===0&&<div style={{color:"var(--muted)",fontSize:14,marginBottom:12}}>Sin pronósticos registrados</div>}
+            {Object.entries(gPicks).map(([g,pick])=>{
+              const res=groupResults[g];
+              let pts=0;
+              if(res&&pick){
+                if(pick.first===res.first&&pick.second===res.second) pts=4;
+                else if((pick.first===res.first||pick.first===res.second)&&(pick.second===res.first||pick.second===res.second)) pts=2;
+                else if(pick.first===res.first||pick.first===res.second||pick.second===res.first||pick.second===res.second) pts=1;
+              }
+              return (
+                <div key={g} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>Grupo {g}</div>
+                    <div style={{fontSize:13,color:"var(--muted)"}}>1°: {pick.first} · 2°: {pick.second}</div>
+                    {res&&<div style={{fontSize:12,color:"var(--muted)"}}>Real: 1° {res.first} · 2° {res.second}</div>}
+                  </div>
+                  {res&&<div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:pts>0?"var(--green)":"#C41E3A"}}>+{pts}<span style={{fontSize:11,marginLeft:2}}>pts</span></div>}
+                  {!res&&<div style={{fontSize:13,color:"var(--muted)"}}>Pendiente</div>}
+                </div>
+              );
+            })}
+          </>
+        )}
+
+        {/* Fase 2 */}
+        {(rankSubTab==="total"||rankSubTab==="fase2") && (
+          <>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8,marginTop:rankSubTab==="total"?16:0}}>⚡ Pronósticos Fase 2</div>
+            {fase2Matches.length===0&&<div style={{color:"var(--muted)",fontSize:14,marginBottom:12}}>Sin pronósticos registrados</div>}
+            {fase2Matches.map(m=>{
+              const pred=preds[m.id]; const res=results[m.id];
+              let pts=null; if(pred&&res) pts=calcMatchScore(m.id,pred,res);
+              return (
+                <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{m.home} vs {m.away}</div>
+                    <div style={{fontSize:12,color:"var(--muted)"}}>{m.date} · {m.phase}</div>
+                    <div style={{fontSize:13,color:"var(--muted)"}}>Tu pronóstico: {pred.homeGoals}-{pred.awayGoals}{res&&` · Resultado: ${res.homeGoals}-${res.awayGoals}`}</div>
+                  </div>
+                  {pts!==null&&<div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:pts>0?"var(--green)":"#C41E3A"}}>+{pts}<span style={{fontSize:11,marginLeft:2}}>pts</span></div>}
+                  {!res&&<div style={{fontSize:13,color:"var(--muted)"}}>Pendiente</div>}
+                </div>
+              );
+            })}
+          </>
         )}
 
         {/* Fase 3 */}
-        {fPicks.champion && (
-          <div style={{marginTop:14}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>🏆 Pronóstico Final</div>
-            <div style={{background:"var(--card)",borderRadius:10,padding:"12px 14px",border:"1px solid var(--border)",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
-              {[["🥇 Campeón","champion",12],["🥈 Subcampeón","runnerUp",9],["🥉 3er Puesto","third",7],["4° Lugar","fourth",5]].map(([label,key,maxPts])=>{
-                const acerto = finalResults[key] && fPicks[key]===finalResults[key];
-                const tieneResultado = !!finalResults[key];
-                return (
-                  <div key={key} style={{background:"rgba(27,79,158,0.06)",borderRadius:8,padding:"8px 10px"}}>
-                    <div style={{fontSize:12,color:"var(--muted)",fontWeight:700}}>{label} ({maxPts}pts)</div>
-                    <div style={{fontSize:14,fontWeight:600}}>{fPicks[key]||"—"}</div>
-                    {tieneResultado && <div style={{fontSize:13,fontWeight:700,color:acerto?"var(--green)":"var(--red)",marginTop:2}}>{acerto?`+${maxPts}pts`:"0pts"}</div>}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{marginTop:8,textAlign:"right",fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)"}}>
-              Total Fase 3: +{calcFinalPickScore(fPicks, finalResults)}pts
-            </div>
-          </div>
+        {(rankSubTab==="total"||rankSubTab==="fase3") && (
+          <>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8,marginTop:rankSubTab==="total"?16:0}}>🏆 Pronóstico Final</div>
+            {!fPicks.champion&&<div style={{color:"var(--muted)",fontSize:14,marginBottom:12}}>Sin pronósticos registrados</div>}
+            {fPicks.champion&&(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+                {[{k:"champion",l:"🥇 Campeón",pts:12},{k:"runnerUp",l:"🥈 Subcampeón",pts:9},{k:"third",l:"🥉 3er Puesto",pts:7},{k:"fourth",l:"4° Lugar",pts:5}].map(f=>{
+                  const pick=fPicks[f.k]; const res=finalResults?.[f.k];
+                  const hit=pick&&res&&pick===res;
+                  return (
+                    <div key={f.k} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",border:`1px solid ${hit?"var(--green)":"var(--border)"}`,textAlign:"center"}}>
+                      <div style={{fontSize:12,color:"var(--muted)",marginBottom:4}}>{f.l}</div>
+                      <div style={{fontSize:14,fontWeight:700}}>{pick||"—"}</div>
+                      {res&&<div style={{fontSize:12,color:"var(--muted)"}}>Real: {res}</div>}
+                      <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:hit?"var(--green)":"#C41E3A"}}>{hit?`+${f.pts}`:"+0"} pts</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
+
       </div>
     );
   }
@@ -2267,9 +2372,42 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
-  // survivorTestDate viene de Supabase (config) y se comparte con todos
   const survivorTest = !!survivorTestDate && survivorTestDate !== "off";
   const today = survivorTest ? survivorTestDate : realToday;
+
+  // Función para verificar y marcar jugadores sin pick en jornadas pasadas
+  async function checkMissingPicks() {
+    const UNIFIED_DAYS_LOCAL = {
+      '2026-06-11': '2026-06-11','2026-06-12': '2026-06-11',
+      '2026-06-28': '2026-06-28','2026-06-29': '2026-06-28',
+      '2026-07-09': '2026-07-09','2026-07-10': '2026-07-09',
+    };
+    const getJKey = (d) => UNIFIED_DAYS_LOCAL[d] || d;
+    const todayKey = getJKey(today);
+    // Jornadas pasadas (antes de hoy)
+    const pastJornadas = [...new Set(groupDates.map(d => getJKey(d)))].filter(j => j < todayKey);
+    let updated = 0;
+    for (const jornadaKey of pastJornadas) {
+      for (const u of survivorUsers) {
+        const userPicks = survivorPicks[u.username] || {};
+        const hasPick = Object.keys(userPicks).some(d => getJKey(d) === jornadaKey);
+        if (!hasPick) {
+          // No envió pick — marcar como perdió vida automáticamente
+          const {error} = await sb.from("survivor_picks").insert({
+            username: u.username, date: jornadaKey,
+            team: "Sin pick", failed: true, result: "nopick", match_id: jornadaKey
+          });
+          if (!error) {
+            setSurvivorPicks(prev => ({...prev, [u.username]: {...(prev[u.username]||{}),
+              [jornadaKey]: {team:"Sin pick", failed:true, result:"nopick"}}}));
+            updated++;
+          }
+        }
+      }
+    }
+    if (updated > 0) alert(`✅ Se marcaron ${updated} jugadores sin pick como vida perdida.`);
+    else alert("✅ Todos los jugadores enviaron su pick en las jornadas pasadas.");
+  }
 
   async function toggleSurvivorTest() {
     if (survivorTest) {
@@ -2591,6 +2729,13 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           <div style={{fontSize:14,color:"#6B7A99",marginBottom:12}}>
             ⚠️ Día nulo: si TODOS los partidos de una jornada empatan, nadie pierde vida.
           </div>
+          {isAdmin && (
+            <button onClick={checkMissingPicks} style={{marginBottom:14,padding:"8px 16px",borderRadius:8,
+              border:"1px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
+              cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
+              🔍 Verificar picks faltantes (quitar vida automática)
+            </button>
+          )}
 
           {/* Pestañas Por calificar / Calificados */}
           {(() => {
