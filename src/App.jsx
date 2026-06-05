@@ -1949,6 +1949,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
       {/* ═══ CLASIFICACIÓN ═══ */}
       {adminSubTab==="clasif" && (
+        <div>
       {/* Group results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🏆 Clasificación de Grupos (1° y 2°)</div>
@@ -1980,13 +1981,13 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
+        </div>
 
       )}
 
       {/* ═══ FASE 2 ═══ */}
       {adminSubTab==="fase2" && (
-      {/* ═══ FASE 2 ═══ */}
-      <div>
+        <div>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>⚡ Fase 2 — Eliminatorias</div>
         <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Ingresa el marcador y presiona 💾 Guardar.</div>
         <div className="phase-tabs">
@@ -2044,11 +2045,13 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           })}
         </div>
       </div>
+        </div>
 
       )}
 
       {/* ═══ FASE 3 ═══ */}
       {adminSubTab==="fase3" && (
+        <div>
       {/* Final results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🥇 Resultados Finales del Torneo</div>
@@ -2074,6 +2077,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
+        </div>
 
       )}
 
