@@ -1410,8 +1410,8 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
       )}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {leaderboard.map((u,i)=>(
-          <div key={u.username} className="lb-row" style={{cursor:currentUser.isAdmin?"pointer":"default",...(u.username===currentUser.username?{borderColor:"#1B4F9E"}:{})}}
-            onClick={()=>currentUser.isAdmin && setSelected(u.username)}>
+          <div key={u.username} className="lb-row" style={{cursor:"pointer",...(u.username===currentUser.username?{borderColor:"#1B4F9E"}:{})}}
+            onClick={()=>setSelected(u.username)}>
             <div className={`lb-pos ${i===0?"p1":i===1?"p2":i===2?"p3":""}`}>{i+1}</div>
             <div className="avatar" style={{background:avatarColor(u.apodo||u.name)}}>{initials(u.apodo||u.name)}</div>
             <div style={{flex:1,fontWeight:600,fontSize:16}}>{u.apodo||u.name}{u.username===currentUser.username&&<span style={{fontSize:14,color:"#1B4F9E",marginLeft:6}}>← Tú</span>}</div>
@@ -2384,8 +2384,12 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
     };
     const getJKey = (d) => UNIFIED_DAYS_LOCAL[d] || d;
     const todayKey = getJKey(today);
-    // Jornadas pasadas (antes de hoy)
+    // Jornadas pasadas (antes o igual a hoy, excluyendo hoy)
     const pastJornadas = [...new Set(groupDates.map(d => getJKey(d)))].filter(j => j < todayKey);
+    if (pastJornadas.length === 0) {
+      alert("ℹ️ No hay jornadas pasadas para verificar. Avanza la fecha en modo prueba a un día posterior.");
+      return;
+    }
     let updated = 0;
     for (const jornadaKey of pastJornadas) {
       for (const u of survivorUsers) {
