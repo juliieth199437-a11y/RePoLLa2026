@@ -969,16 +969,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
   const [local, setLocal] = useState(finalPicks);
   const [saved, setSaved] = useState(false);
   const fields=[{k:"champion",l:"🥇 Campeón",pts:12},{k:"runnerUp",l:"🥈 Subcampeón",pts:9},{k:"third",l:"🥉 Tercer Puesto",pts:7},{k:"fourth",l:"4️⃣ Cuarto Puesto",pts:5}];
-  const [fase3Error, setFase3Error] = useState("");
-  function doSave(){
-    if(!local.champion||!local.runnerUp||!local.third||!local.fourth){
-      setFase3Error("⚠️ Debes seleccionar los 4 puestos."); setTimeout(()=>setFase3Error(""),3000); return;
-    }
-    if(new Set([local.champion,local.runnerUp,local.third,local.fourth]).size<4){
-      setFase3Error("⚠️ No puedes repetir equipos."); setTimeout(()=>setFase3Error(""),3000); return;
-    }
-    saveFinalPick(local); setSaved(true); setTimeout(()=>setSaved(false),2500);
-  }
+  function doSave(){saveFinalPick(local);setSaved(true);setTimeout(()=>setSaved(false),2500);}
   return (
     <div>
       <div className="phase-banner f3">🥇 Fase 3 · Pronósticos de Campeón — estos se ingresan al inicio del torneo y dan los puntos mayores</div>
@@ -1000,7 +991,6 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
           );
         })}
       </div>
-      {fase3Error && <div style={{color:"#C41E3A",fontWeight:700,fontSize:14,marginTop:8,textAlign:"center"}}>{fase3Error}</div>}
       {!finalPicks.champion && (
         <button className="btn-save" style={{marginTop:14}} onClick={doSave}>📨 Enviar pronósticos de campeón</button>
       )}
@@ -1164,18 +1154,9 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
   const [local, setLocal]=useState({});
   const [saved, setSaved]=useState({});
   function getPick(g){return local[g]||groupPicks[g]||{};}
-  const [errors, setErrors] = useState({});
   function handleSave(g){
     const p=getPick(g);
-    if(!p.first||!p.second){
-      setErrors(prev=>({...prev,[g]:"⚠️ Debes seleccionar el 1° y 2° lugar."}));
-      setTimeout(()=>setErrors(prev=>({...prev,[g]:""})),3000); return;
-    }
-    if(p.first===p.second){
-      setErrors(prev=>({...prev,[g]:"⚠️ El 1° y 2° no pueden ser iguales."}));
-      setTimeout(()=>setErrors(prev=>({...prev,[g]:""})),3000); return;
-    }
-    saveGroupPick(g,p.first,p.second);
+    saveGroupPick(g,p.first||"",p.second||"");
     setSaved(prev=>({...prev,[g]:true}));
     setTimeout(()=>setSaved(prev=>({...prev,[g]:false})),2000);
   }
@@ -1198,7 +1179,6 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
                 <select value={pick.second||""} disabled={!!groupPicks[g]} onChange={e=>setLocal(p=>({...p,[g]:{...getPick(g),second:e.target.value}}))}>
                   <option value="">-- elige --</option>{teams.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
                 </select></div>
-              {errors[g] && <div style={{fontSize:13,color:"#C41E3A",fontWeight:700,marginBottom:4,textAlign:"center"}}>{errors[g]}</div>}
               {!groupPicks[g] && <button className="btn-save" style={{width:"100%"}} onClick={()=>handleSave(g)}>Guardar</button>}
               {groupPicks[g] && <div style={{fontSize:14,color:"#2D8A3E",fontWeight:700,textAlign:"center"}}>✓ Guardado</div>}
               {saved[g] && <div style={{fontSize:14,color:"#2D8A3E",textAlign:"center"}}>✓ ¡Guardado!</div>}
@@ -1694,9 +1674,8 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ADMIN TAB
 // ============================================================
 function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults}) {
-  const [matchPhase, setMatchPhase]=useState("dieciseisavos");
+  const [matchPhase, setMatchPhase]=useState("grupos");
   const [adminSubTab, setAdminSubTab]=useState("fase1");
-  const [resultTab, setResultTab]=useState("pendientes");
   const [localResults, setLocalResults]=useState({});
   const [localGroupResults, setLocalGroupResults]=useState({});
   const [localFinal, setLocalFinal]=useState(finalResults||{});
@@ -1817,7 +1796,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
   return (
     <div>
-      {/* Modo Prueba siempre visible */}
+      {/* Test mode toggle */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,padding:"14px 16px",background:"#FFFFFF",borderRadius:12,border:"1px solid var(--border)"}}>
         <div style={{flex:1}}>
           <div style={{fontWeight:700,fontSize:16}}>🧪 Modo Prueba</div>
@@ -1829,29 +1808,18 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </button>
       </div>
 
-      {/* ══ Sub-pestañas Admin ══ */}
-      <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap",borderBottom:"2px solid var(--border)",paddingBottom:12}}>
-        {[
-          {k:"fase1",  l:"⚽ Fase 1"},
-          {k:"clasif", l:"📊 Clasificación"},
-          {k:"fase2",  l:"⚡ Fase 2"},
-          {k:"fase3",  l:"🏆 Fase 3"},
-          {k:"partic", l:"👥 Participantes"},
-        ].map(t=>(
-          <button key={t.k} onClick={()=>setAdminSubTab(t.k)}
-            style={{padding:"8px 14px",borderRadius:8,border:"2px solid",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
-              background:adminSubTab===t.k?"#1B4F9E":"transparent",
-              borderColor:adminSubTab===t.k?"#1B4F9E":"var(--border)",
-              color:adminSubTab===t.k?"#fff":"var(--text)"}}>
+      {/* Sub-pestañas */}
+      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",borderBottom:"2px solid var(--border)",paddingBottom:10}}>
+        {[{k:"fase1",l:"⚽ Fase 1"},{k:"clasif",l:"📊 Clasificación"},{k:"fase2",l:"⚡ Fase 2"},{k:"fase3",l:"🏆 Fase 3"},{k:"partic",l:"👥 Participantes"}].map(t=>(
+          <button key={t.k} onClick={()=>setAdminSubTab(t.k)} style={{padding:"7px 13px",borderRadius:8,border:"2px solid",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
+            background:adminSubTab===t.k?"#1B4F9E":"transparent",borderColor:adminSubTab===t.k?"#1B4F9E":"var(--border)",color:adminSubTab===t.k?"#fff":"var(--text)"}}>
             {t.l}
           </button>
         ))}
       </div>
 
-      {adminSubTab==="fase1" && (
-        <div>
       {/* Results */}
-      <div style={{marginBottom:24}}>
+      {adminSubTab==="fase1" && <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>📋 Ingresar Resultados de Partidos</div>
         <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Ingresa el marcador y presiona 💾 Guardar. Verás ✅ cuando se haya guardado correctamente.</div>
         <div className="phase-tabs">
@@ -1907,12 +1875,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
+      </div>}
 
-        </div>
-      )}
-
-      {adminSubTab==="clasif" && (
-        <div>
+      {adminSubTab==="clasif" && <div style={{marginBottom:24}}>
       {/* Group results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🏆 Clasificación de Grupos (1° y 2°)</div>
@@ -1944,66 +1909,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
+      </div>}
 
-        </div>
-      )}
-
-      {adminSubTab==="fase2" && (
-        <div>
-          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>⚡ Fase 2 — Eliminatorias</div>
-          <div className="phase-tabs">
-            {[{key:"dieciseisavos",label:"Dieciseisavos"},{key:"octavos",label:"Octavos"},
-              {key:"cuartos",label:"Cuartos"},{key:"semis",label:"Semis"},
-              {key:"tercer",label:"3er Puesto"},{key:"final",label:"Final"}
-            ].map(p=><button key={p.key} className={`phase-tab ${matchPhase===p.key?"active":""}`} onClick={()=>setMatchPhase(p.key)}>{p.label}</button>)}
-          </div>
-          <div style={{display:"flex",gap:8,margin:"10px 0"}}>
-            {[["pendientes","⏳","#C41E3A"],["ingresados","✅","#2D8A3E"]].map(([tab,icon,col])=>(
-              <button key={tab} onClick={()=>setResultTab(tab)}
-                style={{padding:"6px 14px",borderRadius:8,border:`2px solid ${resultTab===tab?col:"var(--border)"}`,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
-                  background:resultTab===tab?col:"transparent",color:resultTab===tab?"#fff":"var(--text)"}}>
-                {icon} {tab==="pendientes"?"Pendientes":"Ingresados"} ({KNOCKOUT_MATCHES.filter(m=>m.phase===matchPhase&&(tab==="pendientes"?!results[m.id]:!!results[m.id])).length})
-              </button>
-            ))}
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {KNOCKOUT_MATCHES.filter(m=>m.phase===matchPhase&&(resultTab==="pendientes"?!results[m.id]:!!results[m.id])).map(match=>{
-              const r=getR(match.id); const saved=savedMatches[match.id]; const hasResult=results[match.id];
-              const isDraw=r.homeGoals!==""&&r.awayGoals!==""&&String(r.homeGoals)===String(r.awayGoals);
-              return (
-                <div key={match.id} style={{background:saved?"rgba(45,138,62,0.1)":hasResult?"rgba(45,138,62,0.05)":"var(--card)",border:`1px solid ${saved?"var(--green)":hasResult?"rgba(45,138,62,0.4)":"var(--border)"}`,borderRadius:10,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                  <div style={{flex:1,minWidth:160}}>
-                    <div style={{fontWeight:700,fontSize:14}}><FlagImg team={match.home}/> {match.home} vs {match.away} <FlagImg team={match.away}/></div>
-                    <div style={{fontSize:13,color:"#6B7A99"}}>{match.id} · {fmtDate(match.date)} · {match.stadium}, {match.city}</div>
-                    {hasResult&&!saved&&<div style={{fontSize:13,color:"#2D8A3E",fontWeight:700}}>✅ Guardado: {hasResult.homeGoals}-{hasResult.awayGoals}</div>}
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input className="score-box" type="number" min="0" max="20" value={r.homeGoals??""} onKeyDown={e=>["-","+","e","E","."].includes(e.key)&&e.preventDefault()}
-                      onChange={e=>setLocalResults(p=>({...p,[match.id]:{...getR(match.id),homeGoals:e.target.value}}))} style={{borderColor:r.homeGoals!==""&&r.homeGoals!=null?"var(--gold)":"var(--border)"}}/>
-                    <span className="score-sep">-</span>
-                    <input className="score-box" type="number" min="0" max="20" value={r.awayGoals??""} onKeyDown={e=>["-","+","e","E","."].includes(e.key)&&e.preventDefault()}
-                      onChange={e=>setLocalResults(p=>({...p,[match.id]:{...getR(match.id),awayGoals:e.target.value}}))} style={{borderColor:r.awayGoals!==""&&r.awayGoals!=null?"var(--gold)":"var(--border)"}}/>
-                  </div>
-                  {isDraw&&(
-                    <select value={r.penaltyWinner||""} onChange={e=>setLocalResults(p=>({...p,[match.id]:{...getR(match.id),penaltyWinner:e.target.value}}))}
-                      style={{padding:"5px 8px",background:"#FFFFFF",border:"1px solid var(--border)",borderRadius:6,fontSize:13}}>
-                      <option value="">-- Ganador penales --</option>
-                      <option value={match.home}>{match.home}</option>
-                      <option value={match.away}>{match.away}</option>
-                    </select>
-                  )}
-                  <button className="btn-sm" onClick={()=>saveR(match.id)} style={{background:saved?"var(--green)":"var(--accent)",minWidth:90}}>
-                    {saved?"✅ Guardado":"💾 Guardar"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {adminSubTab==="fase3" && (
-        <div>
+      {adminSubTab==="fase2" && <div style={{marginBottom:24}}>
       {/* Final results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🥇 Resultados Finales del Torneo</div>
@@ -2029,12 +1937,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
+      </div>}
 
-        </div>
-      )}
-
-      {adminSubTab==="partic" && (
-        <div>
+      {adminSubTab==="fase3" && <div>
       {/* Add user */}
       <div style={{marginBottom:24}}>
         {/* ── BORRAR PRONÓSTICOS (solo en modo prueba) ── */}
@@ -2215,6 +2120,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
+      </div>}
+
+      {adminSubTab==="partic" && <div>
       {/* Participants list */}
       <div>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>
@@ -2255,19 +2163,14 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           )}
         </div>
       </div>
+      </div>}
     </div>
   );
 }
 
 // ============================================================
-
-        </div>
-      )}
-
-    </div>
-  );
-}
-
+// MAÑANA TAB
+// ============================================================
 function MananaTab({currentUser, predictions, results, savePrediction, testMode}) {
   const tomorrow = testMode ? "2026-06-12" : tomorrowStr();
   const matches = ALL_MATCHES.filter(m => m.date === tomorrow && m.fase <= 2);
@@ -3241,10 +3144,6 @@ function ReglasTab() {
         <div style={itemStyle}>Cada participante inicia con <strong>2 vidas ❤️❤️</strong>. Perderás una vida cada vez que el equipo elegido empate o pierda.</div>
         <div style={itemStyle}>Una vez se pierdan ambas vidas, quedarás eliminado. El objetivo es <strong>sobrevivir más tiempo que los demás</strong> usando estratégicamente los equipos — ningún equipo puede repetirse durante todo el torneo.</div>
         <div style={itemStyle}>Como primer ítem de desempate, se tendrá en cuenta <strong>quién duró más tiempo sin perder una vida.</strong></div>
-        <div style={{...itemStyle,borderColor:"#C41E3A"}}>
-          <strong>⚠️ Pick obligatorio:</strong>
-          <div style={subStyle}>Si la jornada cierra sin que hayas enviado tu pick, perderás automáticamente una vida. No hay excepciones.</div>
-        </div>
         <div style={{...itemStyle,borderColor:"#F5C518"}}>
           <strong>Jornadas unificadas:</strong> Junio 11+12, Junio 28+29 y Julio 9+10 cuentan como una sola jornada, permitiendo escoger entre más partidos y equipos disponibles. En semifinales y final, cada partido cuenta como jornada individual. El partido por el tercer puesto <strong>no aplica</strong> para el Survivor.
         </div>
