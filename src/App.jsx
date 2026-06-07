@@ -1305,8 +1305,8 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
       )}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {leaderboard.map((u,i)=>(
-          <div key={u.username} className="lb-row" style={{cursor:"pointer",...(u.username===currentUser.username?{borderColor:"#1B4F9E"}:{})}}
-            onClick={()=>setSelected(u.username)}>
+          <div key={u.username} className="lb-row" style={{cursor:currentUser.isAdmin?"pointer":"default",...(u.username===currentUser.username?{borderColor:"#1B4F9E"}:{})}}
+            onClick={()=>currentUser.isAdmin && setSelected(u.username)}>
             <div className={`lb-pos ${i===0?"p1":i===1?"p2":i===2?"p3":""}`}>{i+1}</div>
             <div className="avatar" style={{background:avatarColor(u.apodo||u.name)}}>{initials(u.apodo||u.name)}</div>
             <div style={{flex:1,fontWeight:600,fontSize:16}}>{u.apodo||u.name}{u.username===currentUser.username&&<span style={{fontSize:14,color:"#1B4F9E",marginLeft:6}}>← Tú</span>}</div>
@@ -1675,7 +1675,6 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
-  const [adminSubTab, setAdminSubTab]=useState("fase1");
   const [localResults, setLocalResults]=useState({});
   const [localGroupResults, setLocalGroupResults]=useState({});
   const [localFinal, setLocalFinal]=useState(finalResults||{});
@@ -1808,18 +1807,8 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </button>
       </div>
 
-      {/* Sub-pestañas */}
-      <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap",borderBottom:"2px solid var(--border)",paddingBottom:10}}>
-        {[{k:"fase1",l:"⚽ Fase 1"},{k:"clasif",l:"📊 Clasificación"},{k:"fase2",l:"⚡ Fase 2"},{k:"fase3",l:"🏆 Fase 3"},{k:"partic",l:"👥 Participantes"}].map(t=>(
-          <button key={t.k} onClick={()=>setAdminSubTab(t.k)} style={{padding:"7px 13px",borderRadius:8,border:"2px solid",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
-            background:adminSubTab===t.k?"#1B4F9E":"transparent",borderColor:adminSubTab===t.k?"#1B4F9E":"var(--border)",color:adminSubTab===t.k?"#fff":"var(--text)"}}>
-            {t.l}
-          </button>
-        ))}
-      </div>
-
       {/* Results */}
-      {adminSubTab==="fase1" && <>
+      <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>📋 Ingresar Resultados de Partidos</div>
         <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Ingresa el marcador y presiona 💾 Guardar. Verás ✅ cuando se haya guardado correctamente.</div>
         <div className="phase-tabs">
@@ -1875,9 +1864,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </>
-
-      {adminSubTab==="clasif" && <>
       {/* Group results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🏆 Clasificación de Grupos (1° y 2°)</div>
@@ -1909,9 +1895,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </>
-
-      {adminSubTab==="fase2" && <>
       {/* Final results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🥇 Resultados Finales del Torneo</div>
@@ -1937,9 +1920,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </>
-
-      {adminSubTab==="fase3" && <>
       {/* Add user */}
       <div style={{marginBottom:24}}>
         {/* ── BORRAR PRONÓSTICOS (solo en modo prueba) ── */}
@@ -2120,9 +2100,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
         </div>
       </div>
 
-      </>
-
-      {adminSubTab==="partic" && <>
       {/* Participants list */}
       <div>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>
@@ -2163,7 +2140,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           )}
         </div>
       </div>
-      </>
     </div>
   );
 }
@@ -2199,7 +2175,6 @@ function MananaTab({currentUser, predictions, results, savePrediction, testMode}
 // ============================================================
 function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testMode, setTestMode, survivorTestDate, setSurvivorTestDate}) {
   const isAdmin = currentUser.isAdmin;
-  const [survivorAdminTab, setSurvivorAdminTab] = useState("porCalificar");
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
@@ -2224,6 +2199,57 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
     const newDate = groupDates[newIdx];
     setSurvivorTestDate(newDate);
     await sb.from("config").upsert({key:"survivorTestDate", value:newDate},{onConflict:"key"});
+  }
+
+  async function checkMissingPicks() {
+    // Obtener todas las jornadas únicas (keys unificadas)
+    const allJornadaKeys = [...new Set(groupDates.map(d => getJornadaKey(d)))].sort();
+    // Jornada actual
+    const currentJornadaKey = getJornadaKey(today);
+    // Solo jornadas ANTERIORES a la jornada actual (ya cerradas)
+    const pastJornadas = allJornadaKeys.filter(j => j < currentJornadaKey);
+
+    if (pastJornadas.length === 0) {
+      alert("ℹ️ No hay jornadas cerradas para verificar. La fecha actual es " + today + " (jornada key: " + currentJornadaKey + "). Avanza a un día posterior al 11/12 jun.");
+      return;
+    }
+
+    let sinPick = 0;
+    let yaRegistrado = 0;
+    for (const jornadaKey of pastJornadas) {
+      for (const u of survivorUsers) {
+        const userPicks = survivorPicks[u.username] || {};
+        // Buscar si el usuario tiene pick en esta jornada (por jornadaKey o fechas del bloque)
+        const hasPick = Object.keys(userPicks).some(d => getJornadaKey(d) === jornadaKey);
+        if (!hasPick) {
+          // Verificar que no esté ya registrado como nopick
+          const existeNoPick = userPicks[jornadaKey]?.result === "nopick";
+          if (existeNoPick) { yaRegistrado++; continue; }
+          // Insertar pick vacío como vida perdida
+          const {error} = await sb.from("survivor_picks").insert({
+            username: u.username,
+            date: jornadaKey,
+            team: "Sin pick",
+            failed: true,
+            result: "nopick",
+            match_id: jornadaKey
+          });
+          if (!error) {
+            setSurvivorPicks(prev => ({
+              ...prev,
+              [u.username]: {
+                ...(prev[u.username]||{}),
+                [jornadaKey]: {team:"Sin pick", failed:true, result:"nopick"}
+              }
+            }));
+            sinPick++;
+          }
+        }
+      }
+    }
+    if (sinPick > 0) alert("✅ Se marcaron " + sinPick + " jugadores sin pick como vida perdida en jornadas: " + pastJornadas.join(", "));
+    else if (yaRegistrado > 0) alert("ℹ️ Ya estaban registrados " + yaRegistrado + " casos. Todos al día.");
+    else alert("✅ Todos los jugadores enviaron su pick en las jornadas pasadas: " + pastJornadas.join(", "));
   }
 
   // Jornadas unificadas: fecha real -> fecha clave de la jornada
@@ -2524,10 +2550,14 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:8}}>
             ⚙️ Admin: Marcar resultados del Survivor
           </div>
-          <div className="alert alert-info" style={{marginBottom:12,fontSize:14}}>
-            Después de cada fecha marca si el equipo elegido ganó, empató o perdió.<br/>
+          <div style={{marginBottom:12,fontSize:14,color:"#6B7A99"}}>
             ⚠️ Día nulo: si TODOS los partidos de una jornada empatan, nadie pierde vida.
           </div>
+          <button onClick={checkMissingPicks} style={{marginBottom:14,padding:"8px 16px",borderRadius:8,
+            border:"2px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
+            cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
+            🔍 Verificar picks faltantes (quitar vida automática)
+          </button>
           {groupDates.filter(date => {
             return survivorUsers.some(u => survivorPicks[u.username]?.[date]);
           }).map(date => (
