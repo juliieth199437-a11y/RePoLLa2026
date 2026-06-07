@@ -2283,57 +2283,6 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
     await sb.from("config").upsert({key:"survivorTestDate", value:newDate},{onConflict:"key"});
   }
 
-  async function checkMissingPicks() {
-    // Obtener todas las jornadas únicas (keys unificadas)
-    const allJornadaKeys = [...new Set(groupDates.map(d => getJornadaKey(d)))].sort();
-    // Jornada actual
-    const currentJornadaKey = getJornadaKey(today);
-    // Solo jornadas ANTERIORES a la jornada actual (ya cerradas)
-    const pastJornadas = allJornadaKeys.filter(j => j < currentJornadaKey);
-
-    if (pastJornadas.length === 0) {
-      alert("ℹ️ No hay jornadas cerradas para verificar. La fecha actual es " + today + " (jornada key: " + currentJornadaKey + "). Avanza a un día posterior al 11/12 jun.");
-      return;
-    }
-
-    let sinPick = 0;
-    let yaRegistrado = 0;
-    for (const jornadaKey of pastJornadas) {
-      for (const u of survivorUsers) {
-        const userPicks = survivorPicks[u.username] || {};
-        // Buscar si el usuario tiene pick en esta jornada (por jornadaKey o fechas del bloque)
-        const hasPick = Object.keys(userPicks).some(d => getJornadaKey(d) === jornadaKey);
-        if (!hasPick) {
-          // Verificar que no esté ya registrado como nopick
-          const existeNoPick = userPicks[jornadaKey]?.result === "nopick";
-          if (existeNoPick) { yaRegistrado++; continue; }
-          // Insertar pick vacío como vida perdida
-          const {error} = await sb.from("survivor_picks").insert({
-            username: u.username,
-            date: jornadaKey,
-            team: "Sin pick",
-            failed: true,
-            result: "nopick",
-            match_id: jornadaKey
-          });
-          if (!error) {
-            setSurvivorPicks(prev => ({
-              ...prev,
-              [u.username]: {
-                ...(prev[u.username]||{}),
-                [jornadaKey]: {team:"Sin pick", failed:true, result:"nopick"}
-              }
-            }));
-            sinPick++;
-          }
-        }
-      }
-    }
-    if (sinPick > 0) alert("✅ Se marcaron " + sinPick + " jugadores sin pick como vida perdida en jornadas: " + pastJornadas.join(", "));
-    else if (yaRegistrado > 0) alert("ℹ️ Ya estaban registrados " + yaRegistrado + " casos. Todos al día.");
-    else alert("✅ Todos los jugadores enviaron su pick en las jornadas pasadas: " + pastJornadas.join(", "));
-  }
-
   // Jornadas unificadas: fecha real -> fecha clave de la jornada
   const UNIFIED_DAYS = {
     '2026-06-11': '2026-06-11', // Jornada 1
