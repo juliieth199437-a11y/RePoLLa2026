@@ -1002,8 +1002,8 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
           );
         })}
       </div>
+      {fase3Error && <div style={{color:"#C41E3A",fontWeight:700,fontSize:14,marginTop:8,textAlign:"center"}}>{fase3Error}</div>}
       {!finalPicks.champion && (
-        {fase3Error && <div style={{color:"#C41E3A",fontWeight:700,fontSize:14,marginTop:8,textAlign:"center"}}>{fase3Error}</div>}
         <button className="btn-save" style={{marginTop:14}} onClick={doSave}>📨 Enviar pronósticos de campeón</button>
       )}
       {finalPicks.champion && <div style={{marginTop:14,fontSize:15,color:"#2D8A3E",fontWeight:700}}>✓ Pronósticos enviados y guardados</div>}
