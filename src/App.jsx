@@ -969,7 +969,18 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
   const [local, setLocal] = useState(finalPicks);
   const [saved, setSaved] = useState(false);
   const fields=[{k:"champion",l:"🥇 Campeón",pts:12},{k:"runnerUp",l:"🥈 Subcampeón",pts:9},{k:"third",l:"🥉 Tercer Puesto",pts:7},{k:"fourth",l:"4️⃣ Cuarto Puesto",pts:5}];
-  function doSave(){saveFinalPick(local);setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  const [fase3Error, setFase3Error] = useState("");
+  function doSave(){
+    if(!local.champion||!local.runnerUp||!local.third||!local.fourth){
+      setFase3Error("⚠️ Debes seleccionar los 4 puestos antes de enviar.");
+      setTimeout(()=>setFase3Error(""),3000); return;
+    }
+    if(new Set([local.champion,local.runnerUp,local.third,local.fourth]).size<4){
+      setFase3Error("⚠️ No puedes repetir equipos en el podio.");
+      setTimeout(()=>setFase3Error(""),3000); return;
+    }
+    saveFinalPick(local); setSaved(true); setTimeout(()=>setSaved(false),2500);
+  }
   return (
     <div>
       <div className="phase-banner f3">🥇 Fase 3 · Pronósticos de Campeón — estos se ingresan al inicio del torneo y dan los puntos mayores</div>
@@ -992,6 +1003,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
         })}
       </div>
       {!finalPicks.champion && (
+        {fase3Error && <div style={{color:"#C41E3A",fontWeight:700,fontSize:14,marginTop:8,textAlign:"center"}}>{fase3Error}</div>}
         <button className="btn-save" style={{marginTop:14}} onClick={doSave}>📨 Enviar pronósticos de campeón</button>
       )}
       {finalPicks.champion && <div style={{marginTop:14,fontSize:15,color:"#2D8A3E",fontWeight:700}}>✓ Pronósticos enviados y guardados</div>}
@@ -1153,10 +1165,19 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
 function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
   const [local, setLocal]=useState({});
   const [saved, setSaved]=useState({});
+  const [errors, setErrors]=useState({});
   function getPick(g){return local[g]||groupPicks[g]||{};}
   function handleSave(g){
     const p=getPick(g);
-    saveGroupPick(g,p.first||"",p.second||"");
+    if(!p.first||!p.second){
+      setErrors(prev=>({...prev,[g]:"⚠️ Debes seleccionar el 1° y 2° lugar."}));
+      setTimeout(()=>setErrors(prev=>({...prev,[g]:""})),3000); return;
+    }
+    if(p.first===p.second){
+      setErrors(prev=>({...prev,[g]:"⚠️ El 1° y 2° no pueden ser el mismo equipo."}));
+      setTimeout(()=>setErrors(prev=>({...prev,[g]:""})),3000); return;
+    }
+    saveGroupPick(g,p.first,p.second);
     setSaved(prev=>({...prev,[g]:true}));
     setTimeout(()=>setSaved(prev=>({...prev,[g]:false})),2000);
   }
@@ -1179,6 +1200,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
                 <select value={pick.second||""} disabled={!!groupPicks[g]} onChange={e=>setLocal(p=>({...p,[g]:{...getPick(g),second:e.target.value}}))}>
                   <option value="">-- elige --</option>{teams.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
                 </select></div>
+              {errors[g] && <div style={{fontSize:13,color:"#C41E3A",fontWeight:700,marginBottom:4,textAlign:"center"}}>{errors[g]}</div>}
               {!groupPicks[g] && <button className="btn-save" style={{width:"100%"}} onClick={()=>handleSave(g)}>Guardar</button>}
               {groupPicks[g] && <div style={{fontSize:14,color:"#2D8A3E",fontWeight:700,textAlign:"center"}}>✓ Guardado</div>}
               {saved[g] && <div style={{fontSize:14,color:"#2D8A3E",textAlign:"center"}}>✓ ¡Guardado!</div>}
