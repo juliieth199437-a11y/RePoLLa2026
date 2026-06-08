@@ -872,13 +872,18 @@ function LoginScreen({login}) {
 // HOY TAB — only today's matches
 // ============================================================
 function HoyTab({currentUser, predictions, results, savePrediction}) {
-  const today = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+  const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+  // Antes del inicio del Mundial: anclar al 11 jun para que la gente pueda enviar pronósticos
+  const MUNDIAL_START = "2026-06-11";
+  const today = realToday < MUNDIAL_START ? MUNDIAL_START : realToday;
   const todayMatches = ALL_MATCHES.filter(m => m.date === today && m.fase <= 2);
+  const isAnchored = realToday < MUNDIAL_START;
 
   return (
     <div>
       <div className="phase-banner f1">
         📅 Partidos del día · <strong>{fmtDate(today)}</strong>
+        {isAnchored && <span style={{marginLeft:8,fontSize:13,color:"#F0B429",fontWeight:600}}>· Previa — envía tu pronóstico</span>}
       </div>
       {todayMatches.length === 0 ? (
         <div style={{textAlign:"center",padding:"60px 0",color:"#6B7A99"}}>
@@ -2165,12 +2170,17 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 // MAÑANA TAB
 // ============================================================
 function MananaTab({currentUser, predictions, results, savePrediction}) {
-  const tomorrow = tomorrowStr();
+  const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+  const MUNDIAL_START = "2026-06-11";
+  // Antes del inicio: mostrar el 12 jun (jornada 1 segundo día)
+  const tomorrow = realToday < MUNDIAL_START ? "2026-06-12" : tomorrowStr();
+  const isAnchored = realToday < MUNDIAL_START;
   const matches = ALL_MATCHES.filter(m => m.date === tomorrow && m.fase <= 2);
   return (
     <div>
       <div className="phase-banner f1">
         🌅 Partidos de mañana · <strong>{fmtDate(tomorrow)}</strong>
+        {isAnchored && <span style={{marginLeft:8,fontSize:13,color:"#F0B429",fontWeight:600}}>· Previa — envía tu pronóstico</span>}
       </div>
       {matches.length === 0 ? (
         <div style={{textAlign:"center",padding:"60px 0",color:"#6B7A99"}}>
@@ -2200,6 +2210,20 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const survivorMaxDate = (survivorTestDate && survivorTestDate !== "off") ? survivorTestDate : null;
   // El jugador puede enviar pick si today <= survivorMaxDate
   const canPickToday = survivorMaxDate ? today <= survivorMaxDate : false;
+
+  // Polling cada 30s para que jugadores vean cambios del admin en tiempo real
+  useEffect(() => {
+    if (isAdmin) return; // admin no necesita polling, él mismo cambia el valor
+    const interval = setInterval(async () => {
+      try {
+        const { data: cfg } = await sb.from("config").select("*").eq("key","survivorTestDate").single();
+        if (cfg && cfg.value !== survivorTestDate) {
+          setSurvivorTestDate(cfg.value);
+        }
+      } catch(e) {}
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [survivorTestDate, isAdmin]);
 
   async function setSurvivorMaxDate(date) {
     setSurvivorTestDate(date);
