@@ -1258,12 +1258,15 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
           {fase1Matches.map(m => {
             const pred=preds[m.id]; const res=results[m.id];
             const pts = pred&&res ? calcMatchScore(m.id,pred,res) : null;
+            const visible = arePredictionsVisible(m);
             return (
               <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <div style={{flex:1,minWidth:140}}>
                   <div style={{fontSize:13,fontWeight:700}}>{m.home} vs {m.away}</div>
                   <div style={{fontSize:12,color:"var(--muted)"}}>{m.date}</div>
-                  <div style={{fontSize:13,color:"var(--blue)"}}>Pronóstico: {pred.homeGoals}-{pred.awayGoals}</div>
+                  {visible
+                    ? <div style={{fontSize:13,color:"var(--blue)"}}>Pronóstico: {pred.homeGoals}-{pred.awayGoals}</div>
+                    : <div style={{fontSize:12,color:"var(--muted)"}}>🔒 Pronóstico oculto hasta el cierre</div>}
                   {res && <div style={{fontSize:12,color:"var(--muted)"}}>Real: {res.homeGoals}-{res.awayGoals}</div>}
                 </div>
                 {pts!==null && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:pts>0?"var(--green)":"#C41E3A"}}>{pts>0?`+${pts}`:0}pts</div>}
@@ -1289,8 +1292,9 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
               return (
                 <div key={group} style={{background:"var(--card)",borderRadius:10,padding:"10px 12px",border:"1px solid var(--border)"}}>
                   <div style={{fontWeight:700,marginBottom:4}}>Grupo {group}</div>
-                  <div style={{fontSize:13}}>1° {pick.first}</div>
-                  <div style={{fontSize:13}}>2° {pick.second}</div>
+                  {res
+                    ? <><div style={{fontSize:13}}>1° {pick.first}</div><div style={{fontSize:13}}>2° {pick.second}</div></>
+                    : <div style={{fontSize:12,color:"var(--muted)"}}>🔒 Oculto hasta cierre</div>}
                   {res && <><div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>Real: {res.first} / {res.second}</div>
                   <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:pts>0?"var(--green)":"#C41E3A",marginTop:2}}>+{pts}pts</div></>}
                   {!res && <div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>Pendiente</div>}
@@ -1307,12 +1311,15 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
           {fase2Matches.map(m => {
             const pred=preds[m.id]; const res=results[m.id];
             const pts = pred&&res ? calcMatchScore(m.id,pred,res) : null;
+            const visible = arePredictionsVisible(m);
             return (
               <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <div style={{flex:1,minWidth:140}}>
                   <div style={{fontSize:13,fontWeight:700}}>{m.home} vs {m.away}</div>
                   <div style={{fontSize:12,color:"var(--muted)"}}>{m.date} · {m.phase}</div>
-                  <div style={{fontSize:13,color:"var(--blue)"}}>Pronóstico: {pred.homeGoals}-{pred.awayGoals}</div>
+                  {visible
+                    ? <div style={{fontSize:13,color:"var(--blue)"}}>Pronóstico: {pred.homeGoals}-{pred.awayGoals}</div>
+                    : <div style={{fontSize:12,color:"var(--muted)"}}>🔒 Pronóstico oculto hasta el cierre</div>}
                   {res && <div style={{fontSize:12,color:"var(--muted)"}}>Real: {res.homeGoals}-{res.awayGoals}</div>}
                 </div>
                 {pts!==null && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:pts>0?"var(--green)":"#C41E3A"}}>{pts>0?`+${pts}`:0}pts</div>}
@@ -1333,7 +1340,9 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
                 return (
                   <div key={key} style={{background:"var(--card)",borderRadius:10,padding:"10px 12px",border:`1px solid ${acerto?"var(--green)":"var(--border)"}`}}>
                     <div style={{fontSize:12,color:"var(--muted)",fontWeight:700}}>{label}</div>
-                    <div style={{fontSize:14,fontWeight:700,marginTop:2}}>{fPicks[key]||"—"}</div>
+                    {finalResults?.[key]
+                      ? <div style={{fontSize:14,fontWeight:700,marginTop:2}}>{fPicks[key]||"—"}</div>
+                      : <div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>🔒 Oculto hasta el cierre</div>}
                     {finalResults?.[key] && <div style={{fontSize:12,color:"var(--muted)"}}>Real: {finalResults[key]}</div>}
                     <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:acerto?"var(--green)":"#C41E3A",marginTop:4}}>{acerto?`+${maxPts}`:0}pts</div>
                   </div>
