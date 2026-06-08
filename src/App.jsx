@@ -214,8 +214,7 @@ const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); r
 
 
 // Is match open for predictions (closes 2h before kickoff Colombia time)?
-function isMatchOpen(match, testMode=false) {
-  if (testMode) return true;
+function isMatchOpen(match) {
   if (!match.date) return true;
   // Cierre: 1 día antes a las 10:00 PM hora Colombia (UTC-5)
   const matchDate = new Date(match.date + "T00:00:00-05:00");
@@ -231,17 +230,24 @@ function isMatchOpen(match, testMode=false) {
   return new Date() < close;
 }
 
+// Is match closed for Survivor (closes at kickoff time of the match)?
+function isMatchClosed(closeTime, date) {
+  if (!date || !closeTime) return false;
+  const [h,m] = closeTime.split(":").map(Number);
+  const close = new Date(`${date}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00-05:00`);
+  return new Date() >= close;
+}
+
+
 // Is match visible today (show only today's + past matches)?
-function isMatchVisible(match, testMode=false) {
-  if (testMode) return true;
+function isMatchVisible(match) {
   return match.date <= new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
 }
 
 // Are predictions visible?
 // Fase 1 (grupos): visible después del closeTime (hora de cierre de pronósticos)
 // Fase 2+ (eliminatorias): visible solo después de la hora de inicio del partido
-function arePredictionsVisible(match, testMode=false) {
-  if (testMode) return true;
+function arePredictionsVisible(match) {
   if (match.fase >= 2) {
     // Fase 2+: ocultar hasta que empiece el partido
     const [h,m] = match.time.split(":").map(Number);
@@ -358,15 +364,7 @@ export default function App() {
   const [tab, setTab] = useState("hoy");
   const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
 
-  // testMode se carga desde Supabase para compartirlo entre todos los usuarios
-  const [testMode, setTestModeState] = useState(false);
-  async function setTestMode(val) {
-    const newVal = typeof val === "function" ? val(testMode) : val;
-    setTestModeState(newVal);
-    try {
-      await sb.from("config").upsert({key:"testMode", value: newVal ? "true" : "false"}, {onConflict:"key"});
-    } catch(e) { console.error("Error guardando testMode:", e); }
-  }
+  // testMode eliminado — modo producción real
 
   const DEFAULT_USERS = [
   {username:"admin",password:"admin123",name:"Administradora",isAdmin:true,survivorEnabled:false},
@@ -574,11 +572,7 @@ export default function App() {
           setSurvivorPicks(mapped);
         }
 
-        // Cargar testMode global
-        try {
-          const { data: cfg } = await sb.from("config").select("*").eq("key","testMode").single();
-          if (cfg) setTestModeState(cfg.value === "true");
-        } catch(e) {}
+        // testMode eliminado
 
         // Cargar survivorTestDate global
         try {
@@ -826,19 +820,19 @@ export default function App() {
         ))}
       </nav>
       <div className="content">
-        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
-        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
-        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} testMode={testMode} setTestMode={setTestMode} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} />}
-        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} testMode={testMode} />}
-        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} testMode={testMode} />}
+        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} />}
+        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} />}
+        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} />}
+        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} />}
+        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} />}
         {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} />}
-        {tab==="pronosticos" && <VerPronosticosTab users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} testMode={testMode} setTestMode={currentUser.isAdmin ? setTestMode : null} />}
+        {tab==="pronosticos" && <VerPronosticosTab users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} testMode={testMode} setTestMode={setTestMode} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} />}
       </div>
     </div>
   );
@@ -877,15 +871,14 @@ function LoginScreen({login}) {
 // ============================================================
 // HOY TAB — only today's matches
 // ============================================================
-function HoyTab({currentUser, predictions, results, savePrediction, testMode}) {
-  const today = testMode ? "2026-06-11" : new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+function HoyTab({currentUser, predictions, results, savePrediction}) {
+  const today = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const todayMatches = ALL_MATCHES.filter(m => m.date === today && m.fase <= 2);
 
   return (
     <div>
       <div className="phase-banner f1">
         📅 Partidos del día · <strong>{fmtDate(today)}</strong>
-        {testMode && <span style={{marginLeft:8,color:"#1B4F9E"}}>🧪 Modo Prueba</span>}
       </div>
       {todayMatches.length === 0 ? (
         <div style={{textAlign:"center",padding:"60px 0",color:"#6B7A99"}}>
@@ -895,7 +888,7 @@ function HoyTab({currentUser, predictions, results, savePrediction, testMode}) {
         </div>
       ) : (
         <MatchList matches={todayMatches} predictions={predictions} results={results}
-          savePrediction={savePrediction} testMode={testMode} allPredictions={null} showScores={false} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} />
       )}
     </div>
   );
@@ -904,9 +897,9 @@ function HoyTab({currentUser, predictions, results, savePrediction, testMode}) {
 // ============================================================
 // FASE 1 TAB
 // ============================================================
-function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick, testMode}) {
+function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick}) {
   const [section, setSection] = useState("partidos");
-  const matches = GROUP_MATCHES.filter(m => isMatchVisible(m, testMode));
+  const matches = GROUP_MATCHES.filter(m => isMatchVisible(m));
 
   return (
     <div>
@@ -917,7 +910,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
       </div>
       {section==="partidos" && (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} testMode={testMode} allPredictions={null} showScores={false} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} />
       )}
       {section==="grupos" && (
         <GroupPicksSection groupPicks={groupPicks} groupResults={groupResults} saveGroupPick={saveGroupPick} />
@@ -929,7 +922,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
 // ============================================================
 // FASE 2 TAB
 // ============================================================
-function Fase2Tab({currentUser, predictions, results, savePrediction, testMode}) {
+function Fase2Tab({currentUser, predictions, results, savePrediction}) {
   const [sub, setSub] = useState("dieciseisavos");
   const subPhases = [
     {key:"dieciseisavos", label:"Dieciseisavos"},
@@ -939,7 +932,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, testMode})
     {key:"tercer", label:"3er y 4to Puesto"},
     {key:"final", label:"Gran Final"},
   ];
-  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub && isMatchVisible(m, testMode));
+  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub && isMatchVisible(m));
 
   return (
     <div>
@@ -955,7 +948,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, testMode})
             <div>Esta fase aún no ha comenzado</div>
           </div>
         : <MatchList matches={matches} predictions={predictions} results={results}
-            savePrediction={savePrediction} testMode={testMode} allPredictions={null} showScores={false} />
+            savePrediction={savePrediction} allPredictions={null} showScores={false} />
       }
     </div>
   );
@@ -1014,7 +1007,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
 // ============================================================
 // MATCH LIST — shared component
 // ============================================================
-function MatchList({matches, predictions, results, savePrediction, testMode, allPredictions, showScores}) {
+function MatchList({matches, predictions, results, savePrediction, allPredictions, showScores}) {
   const [local, setLocal] = useState({});
   const [saved, setSaved] = useState({});
   const [confirming, setConfirming] = useState(null);
@@ -1053,7 +1046,7 @@ function MatchList({matches, predictions, results, savePrediction, testMode, all
       {matches.map(match=>{
         const pred = getPred(match.id);
         const result = results[match.id];
-        const open = isMatchOpen(match, testMode);
+        const open = isMatchOpen(match);
         const alreadySaved = !!predictions[match.id];
         const locked = !open || alreadySaved || !!result; // Once sent, always locked
         const hasPred = pred.homeGoals!=null && pred.homeGoals!=="" && pred.awayGoals!=null && pred.awayGoals!=="";
@@ -1376,7 +1369,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
 // ============================================================
 // VER PRONÓSTICOS TAB — partido-centric, solo visible tras cierre
 // ============================================================
-function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, testMode, setTestMode}) {
+function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks, groupResults, finalResults}) {
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
   const participants=users.filter(u=>!u.isAdmin);
@@ -1459,7 +1452,7 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
     a.click();
     URL.revokeObjectURL(url);
   }
-  const matches = ALL_MATCHES.filter(m=>m.phase===phase && isMatchVisible(m, testMode));
+  const matches = ALL_MATCHES.filter(m=>m.phase===phase && isMatchVisible(m));
 
   function getScore(matchId, username) {
     const pred=predictions[username]?.[matchId], result=results[matchId];
@@ -1478,12 +1471,7 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
         <button onClick={exportarExcel} style={{padding:"7px 12px",borderRadius:8,border:"1px solid var(--green)",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",background:"rgba(45,138,62,0.1)",color:"var(--green)"}}>
           📊 Exportar Excel
         </button>
-        {setTestMode && (
-          <button onClick={()=>setTestMode(t=>!t)} style={{padding:"7px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:14,fontWeight:700,cursor:"pointer",
-            background:testMode?"#2a1a00":"transparent",borderColor:testMode?"var(--gold)":"var(--border)",color:testMode?"var(--gold)":"var(--muted)"}}>
-            {testMode?"🔓 Modo Prueba ON":"🧪 Modo Prueba"}
-          </button>
-        )}
+
       </div>
       <div className="phase-tabs">
         {subPhases.map(p=>(
@@ -1496,7 +1484,7 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
         <div className="matches-grid">
           {matches.map(match=>{
             const result=results[match.id];
-            const visible=arePredictionsVisible(match,testMode);
+            const visible=arePredictionsVisible(match);
             const count=participants.filter(u=>predictions[u.username]?.[match.id]?.homeGoals!=null&&predictions[u.username]?.[match.id]?.homeGoals!=="").length;
             const correct=participants.filter(u=>getScore(match.id,u.username)>0).length;
             return (
@@ -1727,7 +1715,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, testMode, setTestMode, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2176,14 +2164,13 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 // ============================================================
 // MAÑANA TAB
 // ============================================================
-function MananaTab({currentUser, predictions, results, savePrediction, testMode}) {
-  const tomorrow = testMode ? "2026-06-12" : tomorrowStr();
+function MananaTab({currentUser, predictions, results, savePrediction}) {
+  const tomorrow = tomorrowStr();
   const matches = ALL_MATCHES.filter(m => m.date === tomorrow && m.fase <= 2);
   return (
     <div>
       <div className="phase-banner f1">
         🌅 Partidos de mañana · <strong>{fmtDate(tomorrow)}</strong>
-        {testMode && <span style={{marginLeft:8,color:"#1B4F9E"}}>🧪 Modo Prueba</span>}
       </div>
       {matches.length === 0 ? (
         <div style={{textAlign:"center",padding:"60px 0",color:"#6B7A99"}}>
@@ -2193,7 +2180,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, testMode}
         </div>
       ) : (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} testMode={testMode} allPredictions={null} showScores={false} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} />
       )}
     </div>
   );
@@ -2202,7 +2189,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, testMode}
 // ============================================================
 // SURVIVOR TAB
 // ============================================================
-function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testMode, setTestMode, survivorTestDate, setSurvivorTestDate}) {
+function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate}) {
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
