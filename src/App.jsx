@@ -2203,13 +2203,23 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
-  // today = siempre fecha real Colombia
-  const today = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
-  // survivorMaxDate = fecha máxima habilitada por admin para enviar picks
-  // "off" o vacío = ninguna fecha habilitada (nadie puede enviar)
+  const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+  const MUNDIAL_START = "2026-06-11";
+  // survivorMaxDate = fecha máxima habilitada por admin (ej: "2026-06-12")
   const survivorMaxDate = (survivorTestDate && survivorTestDate !== "off") ? survivorTestDate : null;
-  // El jugador puede enviar pick si today <= survivorMaxDate
-  const canPickToday = survivorMaxDate ? today <= survivorMaxDate : false;
+  // today para Survivor:
+  //   - Antes del Mundial: usar survivorMaxDate si está definido (para mostrar los partidos de esa jornada)
+  //     pero limitado al primer día del Mundial (2026-06-11) como mínimo visible
+  //   - Durante el Mundial: fecha real
+  const today = realToday < MUNDIAL_START
+    ? (survivorMaxDate ? survivorMaxDate : MUNDIAL_START)
+    : realToday;
+  // Puede enviar pick si:
+  //   - Estamos antes del Mundial y el admin habilitó una fecha
+  //   - O estamos durante el Mundial y today <= survivorMaxDate
+  const canPickToday = survivorMaxDate
+    ? (realToday < MUNDIAL_START || realToday <= survivorMaxDate)
+    : false;
 
   // Polling cada 30s para que jugadores vean cambios del admin en tiempo real
   useEffect(() => {
