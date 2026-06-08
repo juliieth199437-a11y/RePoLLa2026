@@ -780,10 +780,9 @@ export default function App() {
     .sort((a,b)=>b.score-a.score);
 
   if (!currentUser) return <LoginScreen login={login} />;
-  // Cambio de clave desactivado temporalmente
-  // if (currentUser.mustChangePassword && !currentUser.isAdmin) return (
-  //   <ChangePasswordScreen currentUser={currentUser} changePassword={changePassword} />
-  // );
+  if (currentUser.mustChangePassword && !currentUser.isAdmin) return (
+    <ChangePasswordScreen currentUser={currentUser} changePassword={changePassword} />
+  );
 
   const navItems = currentUser.isAdmin ? [
     {key:"admin", label:"⚙️ Admin"},
@@ -1852,18 +1851,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
   return (
     <div>
-      {/* Test mode toggle */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20,padding:"14px 16px",background:"#FFFFFF",borderRadius:12,border:"1px solid var(--border)"}}>
-        <div style={{flex:1}}>
-          <div style={{fontWeight:700,fontSize:16}}>🧪 Modo Prueba</div>
-          <div style={{fontSize:15,color:"#6B7A99"}}>Desbloquea todos los partidos para hacer pruebas.</div>
-        </div>
-        <button onClick={()=>setTestMode(t=>!t)} style={{padding:"8px 16px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:15,fontWeight:700,cursor:"pointer",
-          background:testMode?"var(--green)":"transparent",borderColor:testMode?"var(--green)":"var(--border)",color:testMode?"#fff":"var(--muted)"}}>
-          {testMode?"🔓 ACTIVO":"Activar"}
-        </button>
-      </div>
-
       {/* Results */}
       <div style={{marginBottom:24}}>
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>📋 Ingresar Resultados de Partidos</div>
@@ -1996,38 +1983,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
       {/* Add user */}
       <div style={{marginBottom:24}}>
-        {/* ── BORRAR PRONÓSTICOS (solo en modo prueba) ── */}
-        {testMode && (
-          <div style={{background:"rgba(196,30,58,0.06)",border:"2px solid #C41E3A",borderRadius:14,padding:"18px 20px",marginBottom:20}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#C41E3A",letterSpacing:2,marginBottom:10}}>
-              🗑️ BORRAR PRONÓSTICOS — Solo Modo Prueba
-            </div>
-            {deleteMsg && <div style={{marginBottom:10,fontWeight:700,color:deleteMsg.startsWith("✅")?"#2D8A3E":"#C41E3A"}}>{deleteMsg}</div>}
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {users.map(u=>(
-                <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                  <div style={{flex:1,fontWeight:700,fontSize:15}}>{u.apodo||u.name} <span style={{color:"var(--muted)",fontWeight:400,fontSize:13}}>@{u.username}</span></div>
-                  {deletingUser===u.username ? (
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                      <span style={{fontSize:13,color:"var(--muted)",alignSelf:"center"}}>¿Qué borrar?</span>
-                      {[["todo","🗑️ Todo"],["partidos","⚽ Partidos"],["grupos","📊 Tabla B"],["fase3","🏆 Fase 3"],["survivor","🔥 Survivor"]].map(([tipo,label])=>(
-                        <button key={tipo} onClick={()=>borrarPronosticos(u.username,tipo)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #C41E3A",background:"rgba(196,30,58,0.1)",color:"#C41E3A",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
-                          {label}
-                        </button>
-                      ))}
-                      <button onClick={()=>setDeletingUser(null)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid var(--border)",background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"inherit",fontSize:13}}>Cancelar</button>
-                    </div>
-                  ) : (
-                    <button onClick={()=>setDeletingUser(u.username)} style={{padding:"5px 12px",borderRadius:7,border:"1px solid #C41E3A",background:"transparent",color:"#C41E3A",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>
-                      🗑️ Borrar
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>👤 Agregar Participante</div>
         <div style={{fontSize:15,color:"#6B7A99",marginBottom:10}}>Completa los datos del formulario de inscripción. Solo Nombre, Usuario y Contraseña son obligatorios.</div>
         <div style={{background:"#F8F9FC",border:"1px solid var(--border)",borderRadius:14,padding:"20px"}}>
@@ -2423,17 +2378,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
           {isAdmin && (
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-              <button onClick={toggleSurvivorTest} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer",
-                background:survivorTest?"#2a1a00":"transparent",borderColor:survivorTest?"#F5C518":"rgba(255,255,255,0.3)",color:survivorTest?"#F5C518":"#E8EDF5"}}>
-                {survivorTest?"🔓 Prueba ON":"🧪 Modo Prueba"}
-              </button>
-              {survivorTest && (
-                <>
-                  <button onClick={()=>advanceTestDate(-1)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>◀</button>
-                  <span style={{color:"#F5C518",fontSize:13,fontWeight:700}}>{today}</span>
-                  <button onClick={()=>advanceTestDate(1)} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #F5C518",background:"transparent",color:"#F5C518",cursor:"pointer",fontWeight:700}}>▶</button>
-                </>
-              )}
+
             </div>
           )}
         </div>
@@ -2494,8 +2439,16 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
           )}
 
           {/* Today's pick input */}
-          {myAlive && todayMatches.length > 0 && !myPicks[today] && (
-            <div>
+          {myAlive && todayMatches.length > 0 && !myPicks[today] && (() => {
+            // Cierre: mismo que el primer partido de la jornada
+            const firstMatch = todayMatches.sort((a,b)=>a.closeTime>b.closeTime?1:-1)[0];
+            const closed = firstMatch ? isMatchClosed(firstMatch.closeTime, firstMatch.date) : false;
+            if (closed) return (
+              <div style={{background:"rgba(196,30,58,0.1)",border:"1px solid #C41E3A",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
+                🔒 El plazo para enviar tu pick de esta jornada ya cerró.
+              </div>
+            );
+            return (
               <div style={{fontSize:15,color:"#6B7A99",marginBottom:8,fontWeight:700}}>
                 🎯 Tu pick de hoy · {fmtD(today)}
               </div>
@@ -2520,7 +2473,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
           {myPicks[today] && (
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>
@@ -3227,6 +3181,10 @@ function ReglasTab() {
         <div style={itemStyle}>Cada participante inicia con <strong>2 vidas ❤️❤️</strong>. Perderás una vida cada vez que el equipo elegido empate o pierda.</div>
         <div style={itemStyle}>Una vez se pierdan ambas vidas, quedarás eliminado. El objetivo es <strong>sobrevivir más tiempo que los demás</strong> usando estratégicamente los equipos — ningún equipo puede repetirse durante todo el torneo.</div>
         <div style={itemStyle}>Como primer ítem de desempate, se tendrá en cuenta <strong>quién duró más tiempo sin perder una vida.</strong></div>
+        <div style={{...itemStyle,borderColor:"#C41E3A"}}>
+          <strong>⚠️ Pick obligatorio y cierre:</strong>
+          <div style={subStyle}>Si la jornada cierra sin que hayas enviado tu pick, perderás automáticamente una vida. El cierre del Survivor es a la misma hora del primer partido de cada jornada.</div>
+        </div>
         <div style={{...itemStyle,borderColor:"#F5C518"}}>
           <strong>Jornadas unificadas:</strong> Junio 11+12, Junio 28+29 y Julio 9+10 cuentan como una sola jornada, permitiendo escoger entre más partidos y equipos disponibles. En semifinales y final, cada partido cuenta como jornada individual. El partido por el tercer puesto <strong>no aplica</strong> para el Survivor.
         </div>
