@@ -2449,6 +2449,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
               </div>
             );
             return (
+            <div>
               <div style={{fontSize:15,color:"#6B7A99",marginBottom:8,fontWeight:700}}>
                 🎯 Tu pick de hoy · {fmtD(today)}
               </div>
@@ -2472,6 +2473,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
                   🚫 Equipos ya usados: {myUsedTeams.join(" · ")}
                 </div>
               )}
+            </div>
             </div>
             );
           })()}
