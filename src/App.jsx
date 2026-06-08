@@ -2474,7 +2474,6 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, testM
                 </div>
               )}
             </div>
-            </div>
             );
           })()}
           {myPicks[today] && (
