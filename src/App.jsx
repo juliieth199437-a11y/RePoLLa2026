@@ -899,7 +899,7 @@ function HoyTab({currentUser, predictions, results, savePrediction}) {
 // ============================================================
 function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick}) {
   const [section, setSection] = useState("partidos");
-  const matches = GROUP_MATCHES.filter(m => isMatchVisible(m));
+  const matches = GROUP_MATCHES; // Todos los partidos visibles siempre
 
   return (
     <div>
@@ -932,7 +932,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction}) {
     {key:"tercer", label:"3er y 4to Puesto"},
     {key:"final", label:"Gran Final"},
   ];
-  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub && isMatchVisible(m));
+  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub); // Todos visibles siempre
 
   return (
     <div>
@@ -1452,7 +1452,7 @@ function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks,
     a.click();
     URL.revokeObjectURL(url);
   }
-  const matches = ALL_MATCHES.filter(m=>m.phase===phase && isMatchVisible(m));
+  const matches = ALL_MATCHES.filter(m=>m.phase===phase); // Todos visibles
 
   function getScore(matchId, username) {
     const pred=predictions[username]?.[matchId], result=results[matchId];
@@ -2193,20 +2193,17 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
-  const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
-  // survivorTestDate viene de Supabase (config) y se comparte con todos
-  const survivorTest = !!survivorTestDate && survivorTestDate !== "off";
-  const today = survivorTest ? survivorTestDate : realToday;
+  // today = siempre fecha real Colombia
+  const today = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
+  // survivorMaxDate = fecha máxima habilitada por admin para enviar picks
+  // "off" o vacío = ninguna fecha habilitada (nadie puede enviar)
+  const survivorMaxDate = (survivorTestDate && survivorTestDate !== "off") ? survivorTestDate : null;
+  // El jugador puede enviar pick si today <= survivorMaxDate
+  const canPickToday = survivorMaxDate ? today <= survivorMaxDate : false;
 
-  async function toggleSurvivorTest() {
-    if (survivorTest) {
-      setSurvivorTestDate("off");
-      await sb.from("config").upsert({key:"survivorTestDate", value:"off"},{onConflict:"key"});
-    } else {
-      const date = groupDates[1] || "2026-06-13";
-      setSurvivorTestDate(date);
-      await sb.from("config").upsert({key:"survivorTestDate", value:date},{onConflict:"key"});
-    }
+  async function setSurvivorMaxDate(date) {
+    setSurvivorTestDate(date);
+    await sb.from("config").upsert({key:"survivorTestDate", value:date},{onConflict:"key"});
   }
 
   async function checkMissingPicks() {
@@ -2239,13 +2236,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
     alert(sinPick > 0 ? "✅ " + sinPick + " jugadores marcados sin pick en: " + pastJornadas.join(", ") : "✅ Todos enviaron pick en jornadas: " + pastJornadas.join(", "));
   }
 
-  async function advanceTestDate(dir) {
-    const idx = groupDates.indexOf(today);
-    const newIdx = Math.max(0, Math.min(groupDates.length-1, idx+dir));
-    const newDate = groupDates[newIdx];
-    setSurvivorTestDate(newDate);
-    await sb.from("config").upsert({key:"survivorTestDate", value:newDate},{onConflict:"key"});
-  }
+  // advanceTestDate eliminado
 
   // Jornadas unificadas: fecha real -> fecha clave de la jornada
   const UNIFIED_DAYS = {
@@ -2364,8 +2355,22 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
           {isAdmin && (
-            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:8}}>
+              <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Jornada habilitada hasta:</span>
+              <select
+                value={survivorMaxDate || "off"}
+                onChange={async e => {
+                  const val = e.target.value;
+                  await setSurvivorMaxDate(val);
+                }}
+                style={{padding:"6px 12px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E",cursor:"pointer"}}
+              >
+                <option value="off">🔒 Cerrado (nadie puede enviar)</option>
+                {groupDates.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              {survivorMaxDate && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ Jugadores pueden enviar pick hasta {survivorMaxDate}</span>}
             </div>
           )}
         </div>
@@ -2426,7 +2431,18 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           )}
 
           {/* Today's pick input */}
-          {myAlive && todayMatches.length > 0 && !myPicks[today] && (() => {
+          {myAlive && !myPicks[today] && (() => {
+            // Si no hay fecha habilitada por admin → mostrar mensaje
+            if (!canPickToday) return (
+              <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
+                📅 La jornada de hoy aún no está habilitada. Pronto podrás enviar tu pick.
+              </div>
+            );
+            if (todayMatches.length === 0) return (
+              <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
+                📅 No hay partidos de grupos en la jornada de hoy.
+              </div>
+            );
             // Cierre: mismo que el primer partido de la jornada
             const firstMatch = todayMatches.sort((a,b)=>a.closeTime>b.closeTime?1:-1)[0];
             const closed = firstMatch ? isMatchClosed(firstMatch.closeTime, firstMatch.date) : false;
