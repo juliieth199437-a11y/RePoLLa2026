@@ -832,7 +832,7 @@ export default function App() {
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} />}
       </div>
     </div>
   );
@@ -1720,7 +1720,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2124,8 +2124,22 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
       {/* Participants list */}
       <div>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>
-          📊 Participantes ({users.filter(u=>!u.isAdmin).length} / 100)
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:10}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2}}>
+            📊 Participantes ({users.filter(u=>!u.isAdmin).length} / 100)
+          </div>
+          <button onClick={async () => {
+            const sinCambio = users.filter(u => !u.isAdmin && u.password === "Repolla2026");
+            if (sinCambio.length === 0) { alert("✅ Todos los jugadores ya cambiaron su clave."); return; }
+            if (!window.confirm(`¿Forzar cambio de clave a ${sinCambio.length} jugadores que aún tienen la clave por defecto?`)) return;
+            for (const u of sinCambio) {
+              await sb.from("users").update({must_change_password: true}).eq("username", u.username);
+            }
+            setUsers(prev => prev.map(u => (!u.isAdmin && u.password === "Repolla2026") ? {...u, mustChangePassword: true} : u));
+            alert(`✅ Se forzó cambio de clave a ${sinCambio.length} jugadores. Al próximo ingreso deberán crear una nueva contraseña.`);
+          }} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            🔑 Forzar cambio de clave ({users.filter(u=>!u.isAdmin && u.password==="Repolla2026").length} pendientes)
+          </button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {users.filter(u=>!u.isAdmin).map((u,i)=>(
@@ -2145,6 +2159,9 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
                 <div style={{fontSize:12,color:"#6B7A99",marginTop:1}}>
                   {u.email && <span>📧 {u.email} </span>}
                   {u.phone && <span>📱 {u.phone}</span>}
+                  {u.password === "Repolla2026"
+                    ? <span style={{marginLeft:4,color:"#C41E3A",fontWeight:700}}>🔑 Clave sin cambiar</span>
+                    : <span style={{marginLeft:4,color:"#2D8A3E",fontWeight:600}}>✅ Clave personalizada</span>}
                 </div>
               </div>
               <div style={{textAlign:"right"}}>
