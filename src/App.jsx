@@ -368,6 +368,7 @@ export default function App() {
 
   const DEFAULT_USERS = [
   {username:"admin",password:"admin123",name:"Administradora",isAdmin:true,survivorEnabled:false},
+  {username:"demo",password:"Demo2026",name:"Usuario Demo",apodo:"Demo",email:"",phone:"",city:"",tipo:"repollo",survivorEnabled:true,pagoSurvivor:true,valorPagado:0,isAdmin:false,mustChangePassword:false,isDemo:true},
   {username:"bambam",password:"Repolla2026",name:"Agustín Esguerra",apodo:"Bam Bam",email:"agustinesguerra@gmail.com",phone:"3153338436",city:"Bogotá",tipo:"repollo",survivorEnabled:true,pagoSurvivor:true,valorPagado:800000,isAdmin:false,mustChangePassword:false},
   {username:"jose",password:"Repolla2026",name:"Alberto Escandon",apodo:"Jose",email:"Albertoescandon@yahoo.com",phone:"3153314575",city:"Santa Marta",tipo:"repollo",survivorEnabled:true,pagoSurvivor:true,valorPagado:800000,isAdmin:false,mustChangePassword:false},
   {username:"alfredo",password:"Repolla2026",name:"Alfredo Bonilla",apodo:"Alfredo",email:"alfredobonilla8@gmail.com",phone:"3244283383",city:"Bogota",tipo:"repollo",survivorEnabled:true,pagoSurvivor:true,valorPagado:800000,isAdmin:false,mustChangePassword:false},
@@ -466,7 +467,22 @@ export default function App() {
             isAdmin: u.is_admin, survivorEnabled: u.survivor_enabled,
             pagoSurvivor: u.pago_survivor, valorPagado: u.valor_pagado||0,
             mustChangePassword: u.must_change_password||false,
+            isDemo: u.is_demo||false,
           }));
+          // Asegurar que el usuario demo existe en Supabase
+          const demoExists = mapped.find(u => u.username === "demo");
+          if (!demoExists) {
+            const demoUser = DEFAULT_USERS.find(u => u.username === "demo");
+            if (demoUser) {
+              await sb.from("users").upsert({
+                username:"demo", password:"Demo2026", name:"Usuario Demo",
+                apodo:"Demo", email:"", phone:"", city:"", tipo:"repollo",
+                is_admin:false, survivor_enabled:true, pago_survivor:true,
+                valor_pagado:0, must_change_password:false, is_demo:true
+              }, {onConflict:"username"});
+              mapped.push({...demoUser, mustChangePassword:false, isDemo:true, survivorEnabled:true});
+            }
+          }
           setUsers(mapped);
         } else {
           // Primera vez: insertar DEFAULT_USERS en Supabase
@@ -476,7 +492,8 @@ export default function App() {
             city: u.city||"", tipo: u.tipo||"repollo",
             is_admin: u.isAdmin||false, survivor_enabled: u.survivorEnabled||false,
             pago_survivor: u.pagoSurvivor||false, valor_pagado: u.valorPagado||0,
-            must_change_password: false,
+            must_change_password: u.mustChangePassword||false,
+            is_demo: u.isDemo||false,
           }));
           await sb.from("users").upsert(toInsert, {onConflict:"username"});
         }
@@ -769,7 +786,7 @@ export default function App() {
 
   const getScore = (username) => getUserTotalScore(username, predictions, groupPicks, finalPicks, results, groupResults, finalResults);
 
-  const leaderboard = users.filter(u=>!u.isAdmin)
+  const leaderboard = users.filter(u=>!u.isAdmin && !u.isDemo)
     .map(u=>({...u, score:getScore(u.username)}))
     .sort((a,b)=>b.score-a.score);
 
@@ -832,7 +849,7 @@ export default function App() {
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} />}
       </div>
     </div>
   );
@@ -1386,7 +1403,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
 function VerPronosticosTab({users, predictions, results, groupPicks, finalPicks, groupResults, finalResults}) {
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
-  const participants=users.filter(u=>!u.isAdmin);
+  const participants=users.filter(u=>!u.isAdmin && !u.isDemo);
   const subPhases=[
     {key:"grupos",label:"Grupos",fase:1},
     {key:"dieciseisavos",label:"Dieciseisavos",fase:2},
@@ -1729,7 +1746,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2135,10 +2152,47 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
       <div>
         <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:10}}>
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2}}>
-            📊 Participantes ({users.filter(u=>!u.isAdmin).length} / 100)
+            📊 Participantes ({users.filter(u=>!u.isAdmin&&!u.isDemo).length} / 100)
           </div>
+          <button onClick={() => {
+            const jugadores = users.filter(u => !u.isAdmin && !u.isDemo);
+            const rows = [];
+            rows.push(["Jugador","Apodo","Usuario","Tipo","Fase 1 (partidos)","Clasificación grupos","Fase 3 (podio)","Clave cambiada"]);
+            jugadores.forEach(u => {
+              const predsU = predictions[u.username] || {};
+              const totalF1 = GROUP_MATCHES.length;
+              const enviados = GROUP_MATCHES.filter(m => {
+                const p = predsU[m.id];
+                return p && p.homeGoals !== "" && p.homeGoals != null && p.awayGoals !== "" && p.awayGoals != null;
+              }).length;
+              const pendientesF1 = totalF1 - enviados;
+              const gPicks = groupPicks[u.username] || {};
+              const gruposTotales = 12;
+              const gruposEnviados = Object.keys(gPicks).length;
+              const pendientesGrupos = gruposTotales - gruposEnviados;
+              const fp = finalPicks[u.username];
+              const fase3Ok = fp && fp.champion ? "✅ Enviado" : "❌ Pendiente";
+              const claveOk = u.password !== "Repolla2026" ? "✅ Cambiada" : "❌ Sin cambiar";
+              rows.push([
+                u.name, u.apodo||u.name, u.username, u.tipo==="repollo"?"RePoLLo":"NueVón",
+                pendientesF1===0 ? "✅ Completo" : `❌ Faltan ${pendientesF1}/${totalF1}`,
+                pendientesGrupos===0 ? "✅ Completo" : `❌ Faltan ${pendientesGrupos}/${gruposTotales} grupos`,
+                fase3Ok, claveOk
+              ]);
+            });
+            const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("
+");
+            const blob = new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8;"});
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `RePoLLa_Pendientes_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #1B4F9E",background:"rgba(27,79,158,0.08)",color:"#1B4F9E",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+            📥 Exportar pendientes
+          </button>
           <button onClick={async () => {
-            const sinCambio = users.filter(u => !u.isAdmin && u.password === "Repolla2026");
+            const sinCambio = users.filter(u => !u.isAdmin && !u.isDemo && u.password === "Repolla2026");
             if (sinCambio.length === 0) { alert("✅ Todos los jugadores ya cambiaron su clave."); return; }
             if (!window.confirm(`¿Forzar cambio de clave a ${sinCambio.length} jugadores que aún tienen la clave por defecto?`)) return;
             for (const u of sinCambio) {
@@ -2147,11 +2201,11 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
             setUsers(prev => prev.map(u => (!u.isAdmin && u.password === "Repolla2026") ? {...u, mustChangePassword: true} : u));
             alert(`✅ Se forzó cambio de clave a ${sinCambio.length} jugadores. Al próximo ingreso deberán crear una nueva contraseña.`);
           }} style={{padding:"7px 14px",borderRadius:8,border:"1px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-            🔑 Forzar cambio de clave ({users.filter(u=>!u.isAdmin && u.password==="Repolla2026").length} pendientes)
+            🔑 Forzar cambio de clave ({users.filter(u=>!u.isAdmin&&!u.isDemo&&u.password==="Repolla2026").length} pendientes)
           </button>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {users.filter(u=>!u.isAdmin).map((u,i)=>(
+          {users.filter(u=>!u.isAdmin&&!u.isDemo).map((u,i)=>(
             <div key={u.username} className="lb-row">
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#6B7A99",minWidth:28}}>{i+1}</div>
               <div className="avatar" style={{background:avatarColor(u.apodo||u.name),width:34,height:34,fontSize:14}}>{initials(u.apodo||u.name)}</div>
@@ -2181,7 +2235,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               </div>
             </div>
           ))}
-          {users.filter(u=>!u.isAdmin).length===0 && (
+          {users.filter(u=>!u.isAdmin&&!u.isDemo).length===0 && (
             <div style={{textAlign:"center",padding:"30px",color:"#6B7A99",fontSize:15}}>
               Aún no hay participantes. ¡Agrega el primero arriba!
             </div>
@@ -2227,7 +2281,7 @@ function MananaTab({currentUser, predictions, results, savePrediction}) {
 // ============================================================
 function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate}) {
   const isAdmin = currentUser.isAdmin;
-  const survivorUsers = users.filter(u => !u.isAdmin && u.survivorEnabled === true);
+  const survivorUsers = users.filter(u => !u.isAdmin && !u.isDemo && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
