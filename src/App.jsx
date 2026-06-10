@@ -213,20 +213,15 @@ const ALL_MATCHES = [...GROUP_MATCHES, ...KNOCKOUT_MATCHES];
 const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); };
 
 
-// Is match open for predictions (closes 2h before kickoff Colombia time)?
+// Is match open for predictions? Closes at 10PM Colombia the day before the match.
 function isMatchOpen(match) {
   if (!match.date) return true;
-  // Cierre: 1 día antes a las 10:00 PM hora Colombia (UTC-5)
-  const matchDate = new Date(match.date + "T00:00:00-05:00");
-  const closeDate = new Date(matchDate.getTime() - 24*60*60*1000); // 1 día antes
-  closeDate.setHours(10, 0, 0, 0); // 10:00 PM
-  // Build close datetime in Colombia timezone
   const [y, mo, d] = match.date.split("-");
   const prevDay = new Date(parseInt(y), parseInt(mo)-1, parseInt(d)-1);
-  const prevStr = prevDay.getFullYear() + "-" + 
-    String(prevDay.getMonth()+1).padStart(2,"0") + "-" + 
+  const prevStr = prevDay.getFullYear() + "-" +
+    String(prevDay.getMonth()+1).padStart(2,"0") + "-" +
     String(prevDay.getDate()).padStart(2,"0");
-  const close = new Date(prevStr + "T10:00:00-05:00");
+  const close = new Date(prevStr + "T22:00:00-05:00");
   return new Date() < close;
 }
 
@@ -640,8 +635,9 @@ export default function App() {
     const username = currentUser.username;
     setPredictions(prev => ({...prev, [username]: {...(prev[username]||{}), [matchId]:{homeGoals,awayGoals,penaltyWinner}}}));
     try {
-      await sb.from("predictions").upsert({username, match_id:matchId, home_goals:homeGoals, away_goals:awayGoals, penalty_winner:penaltyWinner||null},{onConflict:"username,match_id"});
-    } catch(e) { console.error("Error guardando predicción:", e); }
+      const { error } = await sb.from("predictions").upsert({username, match_id:matchId, home_goals:homeGoals, away_goals:awayGoals, penalty_winner:penaltyWinner||null},{onConflict:"username,match_id"});
+      if (error) { console.error("Error guardando predicción:", error); alert("Error al guardar: " + error.message); }
+    } catch(e) { console.error("Error guardando predicción:", e); alert("Error: " + e.message); }
   }
 
   async function saveGroupPick(group, first, second) {
@@ -1069,8 +1065,8 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
         const pred = getPred(match.id);
         const result = results[match.id];
         const open = isMatchOpen(match);
-        const alreadySaved = !!predictions[match.id];
-        const locked = !open || alreadySaved || !!result; // Once sent, always locked
+        const pred_saved = predictions[match.id]; const alreadySaved = !!(pred_saved && pred_saved.homeGoals != null && pred_saved.homeGoals !== '' && pred_saved.awayGoals != null && pred_saved.awayGoals !== '');
+        const locked = !open || alreadySaved || !!result;
         const hasPred = pred.homeGoals!=null && pred.homeGoals!=="" && pred.awayGoals!=null && pred.awayGoals!=="";
         const isDraw = hasPred && parseInt(pred.homeGoals)===parseInt(pred.awayGoals);
         const isKO = match.fase===2;
@@ -1083,7 +1079,7 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
               <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#1B4F9E",letterSpacing:1}}>{match.id}{match.group?` · Grupo ${match.group}`:""}</div>
               <div style={{fontSize:15,color:"#1A1A2E",fontWeight:600}}>📅 {fmtDate(match.date)}</div>
               <div style={{fontSize:14,color:"#6B7A99"}}>⏰ {match.time} col.</div>
-              <div style={{fontSize:14,color:"#C41E3A"}}>🔒 Cierre: 1 día antes 10:00 PM Col.</div>
+              <div style={{fontSize:14,color:"#C41E3A"}}>🔒 Cierre: día anterior 10:00 PM Col.</div>
               {match.stadium && <div style={{fontSize:12,color:"#6B7A99",marginTop:2}}>🏟️ {match.stadium}</div>}
               {match.city && <div style={{fontSize:12,color:"#6B7A99"}}>📍 {match.city}{match.country?", "+match.country:""}</div>}
             </div>
