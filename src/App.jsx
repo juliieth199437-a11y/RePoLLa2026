@@ -635,7 +635,9 @@ export default function App() {
     const username = currentUser.username;
     setPredictions(prev => ({...prev, [username]: {...(prev[username]||{}), [matchId]:{homeGoals,awayGoals,penaltyWinner}}}));
     try {
-      const { error } = await sb.from("predictions").upsert({username, match_id:matchId, home_goals:homeGoals, away_goals:awayGoals, penalty_winner:penaltyWinner||null},{onConflict:"username,match_id"});
+      // Primero borrar si ya existe, luego insertar
+      await sb.from("predictions").delete().eq("username", username).eq("match_id", matchId);
+      const { error } = await sb.from("predictions").insert({username, match_id:matchId, home_goals:homeGoals, away_goals:awayGoals, penalty_winner:penaltyWinner||null});
       if (error) { console.error("Error guardando predicción:", error); alert("Error al guardar: " + error.message); }
     } catch(e) { console.error("Error guardando predicción:", e); alert("Error: " + e.message); }
   }
