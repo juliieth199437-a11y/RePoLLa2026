@@ -982,6 +982,8 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
   const [saved, setSaved] = useState(false);
   const fields=[{k:"champion",l:"🥇 Campeón",pts:12},{k:"runnerUp",l:"🥈 Subcampeón",pts:9},{k:"third",l:"🥉 Tercer Puesto",pts:7},{k:"fourth",l:"4️⃣ Cuarto Puesto",pts:5}];
   const [fase3Error, setFase3Error] = useState("");
+  // Cierre Fase 3: 9 de junio 2026 a las 22:00 Colombia (UTC-5)
+  const fase3Closed = new Date() >= new Date("2026-06-09T23:00:00-05:00");
   function doSave(){
     if(!local.champion||!local.runnerUp||!local.third||!local.fourth){
       setFase3Error("⚠️ Debes seleccionar los 4 puestos antes de enviar.");
@@ -1005,7 +1007,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
               <div className="final-pick-label">{f.l}<span className="pts-badge">{f.pts} pts</span></div>
               {res && <div style={{fontSize:15,color:"#1B4F9E",marginBottom:6}}>Resultado: <FlagImg team={res} /> {res}</div>}
               <select value={local[f.k]||""} onChange={e=>setLocal(p=>({...p,[f.k]:e.target.value}))}
-                disabled={!!finalPicks[f.k]}
+                disabled={!!finalPicks[f.k] || fase3Closed}
                 style={{width:"100%",padding:10,background:"#F8F9FC",border:"1px solid var(--border)",borderRadius:8,color:"#1A1A2E",fontFamily:"inherit",fontSize:15,outline:"none"}}>
                 <option value="">-- elige un equipo --</option>
                 {TEAMS_LIST.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
@@ -1015,7 +1017,12 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
         })}
       </div>
       {fase3Error && <div style={{color:"#C41E3A",fontWeight:700,fontSize:14,marginTop:8,textAlign:"center"}}>{fase3Error}</div>}
-      {!finalPicks.champion && (
+      {fase3Closed && !finalPicks.champion && (
+        <div style={{marginTop:14,padding:"10px 16px",background:"rgba(196,30,58,0.08)",border:"1px solid #C41E3A",borderRadius:10,fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
+          🔒 El plazo para enviar el pronóstico de campeón cerró el 9 de junio a las 10:00 PM.
+        </div>
+      )}
+      {!fase3Closed && !finalPicks.champion && (
         <button className="btn-save" style={{marginTop:14}} onClick={doSave}>📨 Enviar pronósticos de campeón</button>
       )}
       {finalPicks.champion && <div style={{marginTop:14,fontSize:15,color:"#2D8A3E",fontWeight:700}}>✓ Pronósticos enviados y guardados</div>}
@@ -1178,6 +1185,8 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
   const [local, setLocal]=useState({});
   const [saved, setSaved]=useState({});
   const [errors, setErrors]=useState({});
+  // Cierre clasificación grupos: 9 de junio 2026 a las 22:00 Colombia (UTC-5)
+  const groupsClosed = new Date() >= new Date("2026-06-09T23:00:00-05:00");
   function getPick(g){return local[g]||groupPicks[g]||{};}
   function handleSave(g){
     const p=getPick(g);
@@ -1205,15 +1214,16 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
               <div style={{fontSize:14,color:"#6B7A99",marginBottom:8}}>{teams.join(" · ")}</div>
               {res && <div style={{fontSize:15,color:"#1B4F9E",marginBottom:6}}>🏁 1°:<FlagImg team={res.first} /> {res.first} · 2°:<FlagImg team={res.second} /> {res.second}</div>}
               <div className="field" style={{marginBottom:8}}><label>1° Lugar</label>
-                <select value={pick.first||""} disabled={!!groupPicks[g]} onChange={e=>setLocal(p=>({...p,[g]:{...getPick(g),first:e.target.value}}))}>
+                <select value={pick.first||""} disabled={!!groupPicks[g] || groupsClosed} onChange={e=>setLocal(p=>({...p,[g]:{...getPick(g),first:e.target.value}}))}>
                   <option value="">-- elige --</option>{teams.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
                 </select></div>
               <div className="field" style={{marginBottom:10}}><label>2° Lugar</label>
-                <select value={pick.second||""} disabled={!!groupPicks[g]} onChange={e=>setLocal(p=>({...p,[g]:{...getPick(g),second:e.target.value}}))}>
+                <select value={pick.second||""} disabled={!!groupPicks[g] || groupsClosed} onChange={e=>setLocal(p=>({...p,[g]:{...getPick(g),second:e.target.value}}))}>
                   <option value="">-- elige --</option>{teams.map(t=><option key={t} value={t}>{flag(t)} {t}</option>)}
                 </select></div>
               {errors[g] && <div style={{fontSize:13,color:"#C41E3A",fontWeight:700,marginBottom:4,textAlign:"center"}}>{errors[g]}</div>}
-              {!groupPicks[g] && <button className="btn-save" style={{width:"100%"}} onClick={()=>handleSave(g)}>Guardar</button>}
+              {!groupPicks[g] && !groupsClosed && <button className="btn-save" style={{width:"100%"}} onClick={()=>handleSave(g)}>Guardar</button>}
+              {!groupPicks[g] && groupsClosed && <div style={{fontSize:13,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>🔒 Cerrado</div>}
               {groupPicks[g] && <div style={{fontSize:14,color:"#2D8A3E",fontWeight:700,textAlign:"center"}}>✓ Guardado</div>}
               {saved[g] && <div style={{fontSize:14,color:"#2D8A3E",textAlign:"center"}}>✓ ¡Guardado!</div>}
             </div>
