@@ -1571,8 +1571,13 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
   const matches = ALL_MATCHES.filter(m=>m.phase===phase); // Todos visibles
 
   function getScore(matchId, username) {
-    const pred=predictions[username]?.[matchId], result=results[matchId];
+    // Usar freshPreds si están disponibles (datos frescos de Supabase para este partido)
+    const pred = (freshPreds && freshPreds[username]) 
+      ? freshPreds[username]
+      : predictions[username]?.[matchId];
+    const result=results[matchId];
     if (!pred||!result) return null;
+    if (pred.homeGoals===null || pred.homeGoals===undefined || pred.homeGoals==="") return null;
     return calcMatchScore(matchId, pred, result);
   }
 
