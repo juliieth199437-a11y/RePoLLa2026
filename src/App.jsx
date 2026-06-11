@@ -2660,75 +2660,76 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
 
           {/* Today's pick input */}
           {(() => {
-            // Verificar si ya envió pick para esta jornada en CUALQUIERA de sus fechas
             const alreadyPickedThisJornada = jornadaMatchDates.some(d => myPicks[d]) || !!myPicks[todayJornadaKey];
-            if (!myAlive || alreadyPickedThisJornada) return null;
-            return (() => {
-            // Si no hay fecha habilitada por admin → mostrar mensaje
+            // Si ya envió pick, mostrar el pick enviado
+            if (alreadyPickedThisJornada) {
+              const sentPick = myPicks[todayJornadaKey] || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean);
+              if (!sentPick) return null;
+              return (
+                <div style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>✅ Pick enviado — no se puede cambiar:</span>
+                    <FlagImg team={sentPick.team} size={20}/>
+                    <span style={{fontWeight:700,fontSize:16}}>{sentPick.team}</span>
+                    {sentPick.result && (
+                      <span style={{fontSize:15,color:sentPick.result==="win"?"var(--green)":sentPick.failed?"var(--red)":"var(--accent)"}}>
+                        {sentPick.result==="win"?"✅ Ganó":sentPick.failed?"💀 Falló":"➖ Empate"}
+                      </span>
+                    )}
+                    {!sentPick.result && (
+                      <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            // Si no ha enviado y no está vivo, no mostrar nada
+            if (!myAlive) return null;
+            // Si no hay fecha habilitada
             if (!canPickToday) return (
               <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
                 📅 La jornada de hoy aún no está habilitada. Pronto podrás enviar tu pick.
               </div>
             );
+            // Si no hay partidos
             if (todayMatches.length === 0) return (
               <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
                 📅 No hay partidos de grupos en la jornada de hoy.
               </div>
             );
-            // Cierre ya calculado en canPickToday (survivorClosed)
+            // Si cerró
             if (survivorClosed) return (
               <div style={{background:"rgba(196,30,58,0.1)",border:"1px solid #C41E3A",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
                 🔒 El plazo para enviar tu pick de esta jornada ya cerró.
               </div>
             );
+            // Mostrar selector de equipo
             return (
-            <div>
-              <div style={{fontSize:15,color:"#6B7A99",marginBottom:8,fontWeight:700}}>
-                🎯 Tu pick · Jornada {jornadaMatchDates.length > 1
-                  ? jornadaMatchDates.map(d => fmtD(d)).join(" y ")
-                  : fmtD(today)}
-              </div>
-              {availableTeams.length > 0 ? (
-                <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-                  <select value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)}
-                    style={{flex:1,padding:"10px 14px",background:"#F8F9FC",border:"1px solid var(--border)",borderRadius:10,color:"#1A1A2E",fontFamily:"inherit",fontSize:16,outline:"none",minWidth:180}}>
-                    <option value="">-- Elige tu equipo --</option>
-                    {availableTeams.map(t=><option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <button className="btn-save" onClick={savePick} style={{padding:"10px 20px",background:"var(--gold)",color:"#000"}}>🔥 Confirmar pick</button>
-                  {saved && <span style={{color:"#2D8A3E",fontSize:15,fontWeight:700}}>✅ ¡Pick guardado!</span>}
+              <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"16px 20px"}}>
+                <div style={{fontSize:15,color:"#6B7A99",marginBottom:8,fontWeight:700}}>
+                  🎯 Tu pick · Jornada {jornadaMatchDates.length > 1 ? jornadaMatchDates.map(d=>fmtD(d)).join(" y ") : fmtD(today)}
                 </div>
-              ) : (
-                <div style={{fontSize:15,color:"#C41E3A",fontWeight:600}}>
-                  ⚠️ Ya usaste todos los equipos que juegan hoy. ¡No tienes equipos disponibles para esta fecha!
-                </div>
-              )}
-              {myUsedTeams.length > 0 && (
-                <div style={{fontSize:14,color:"rgba(255,255,255,0.8)",marginTop:8,fontWeight:600}}>
-                  🚫 Equipos ya usados: {myUsedTeams.join(" · ")}
-                </div>
-              )}
-            </div>
-            );
-          })()}
-          {(myPicks[todayJornadaKey] || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean)) && (() => {
-            const sentPick = myPicks[todayJornadaKey] || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean);
-            return (
-            <div style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>✅ Pick enviado — no se puede cambiar:</span>
-                <FlagImg team={sentPick.team} size={20}/>
-                <span style={{fontWeight:700,fontSize:16}}>{sentPick.team}</span>
-                {sentPick.result && (
-                  <span style={{fontSize:15,color:sentPick.result==="win"?"var(--green)":sentPick.failed?"var(--red)":"var(--accent)"}}>
-                    {sentPick.result==="win"?"✅ Ganó":sentPick.failed?"💀 Falló":"➖ Empate"}
-                  </span>
+                {availableTeams.length > 0 ? (
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                    <select value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)}
+                      style={{padding:"8px 12px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:15,background:"#F8F9FC",color:"#1A1A2E",flex:1,minWidth:180}}>
+                      <option value="">-- Elige tu equipo --</option>
+                      {availableTeams.map(t=><option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <button className="btn-save" onClick={savePick} style={{padding:"10px 20px",background:"var(--gold)",color:"#000"}}>🔥 Confirmar pick</button>
+                    {saved && <span style={{color:"#2D8A3E",fontSize:15,fontWeight:700}}>✅ ¡Pick guardado!</span>}
+                  </div>
+                ) : (
+                  <div style={{fontSize:15,color:"#C41E3A",fontWeight:600}}>
+                    ⚠️ Ya usaste todos los equipos que juegan hoy.
+                  </div>
                 )}
-                {!sentPick.result && (
-                  <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>
+                {myUsedTeams.length > 0 && (
+                  <div style={{fontSize:14,color:"rgba(255,255,255,0.8)",marginTop:8,fontWeight:600}}>
+                    🚫 Equipos ya usados: {myUsedTeams.join(" · ")}
+                  </div>
                 )}
               </div>
-            </div>
             );
           })()}
           {!myAlive && (
