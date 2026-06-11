@@ -493,14 +493,16 @@ export default function App() {
           await sb.from("users").upsert(toInsert, {onConflict:"username"});
         }
 
-        // Predicciones
+        // Predicciones — cargar solo del usuario actual primero, luego el resto
         const { data: preds } = await sb.from("predictions").select("*");
         if (preds) {
           const mapped = {};
           preds.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
+            // Guardar homeGoals como número (no string) para que alreadySaved funcione bien
             mapped[p.username][p.match_id] = {
-              homeGoals: p.home_goals, awayGoals: p.away_goals,
+              homeGoals: p.home_goals !== null ? Number(p.home_goals) : null,
+              awayGoals: p.away_goals !== null ? Number(p.away_goals) : null,
               penaltyWinner: p.penalty_winner
             };
           });
@@ -641,17 +643,11 @@ export default function App() {
       if (hg === null || ag === null || isNaN(hg) || isNaN(ag)) {
         alert("❌ Marcador inválido — ingresa ambos valores (puedes poner 0)"); return;
       }
-      // DIAGNÓSTICO — borrar después
-      console.log("Intentando guardar:", {username, matchId, hg, ag});
-      const { data: uData, error: uErr } = await sb.from("predictions").upsert(
+      const { error: uErr } = await sb.from("predictions").upsert(
         {username, match_id:matchId, home_goals:hg, away_goals:ag, penalty_winner:penaltyWinner||null},
         {onConflict:"username,match_id", ignoreDuplicates:false}
-      ).select();
-      if (uErr) {
-        alert("❌ ERROR SUPABASE:\nCódigo: " + uErr.code + "\nMensaje: " + uErr.message + "\nDetalle: " + uErr.details);
-      } else {
-        alert("✅ GUARDADO OK\nUsuario: " + username + "\nPartido: " + matchId + "\nMarcador: " + hg + "-" + ag + "\nRegistro: " + JSON.stringify(uData));
-      }
+      );
+      if (uErr) { alert("❌ Error al guardar: " + uErr.message); }
     } catch(e) { alert("❌ Error: " + e.message); }
   }
 
