@@ -635,11 +635,17 @@ export default function App() {
     const username = currentUser.username;
     setPredictions(prev => ({...prev, [username]: {...(prev[username]||{}), [matchId]:{homeGoals,awayGoals,penaltyWinner}}}));
     try {
-      // Primero borrar si ya existe, luego insertar
-      await sb.from("predictions").delete().eq("username", username).eq("match_id", matchId);
-      const { error } = await sb.from("predictions").insert({username, match_id:matchId, home_goals:homeGoals, away_goals:awayGoals, penalty_winner:penaltyWinner||null});
-      if (error) { console.error("Error guardando predicción:", error); alert("Error al guardar: " + error.message); }
-    } catch(e) { console.error("Error guardando predicción:", e); alert("Error: " + e.message); }
+      // Intentar upsert primero
+      // Convertir a integer explícitamente (Supabase lo requiere)
+      const hg = parseInt(homeGoals, 10);
+      const ag = parseInt(awayGoals, 10);
+      if (isNaN(hg) || isNaN(ag)) { alert("❌ Marcador inválido"); return; }
+      const { error: uErr } = await sb.from("predictions").upsert(
+        {username, match_id:matchId, home_goals:hg, away_goals:ag, penalty_winner:penaltyWinner||null},
+        {onConflict:"username,match_id", ignoreDuplicates:false}
+      );
+      if (uErr) { alert("❌ Error al guardar: " + uErr.message); }
+    } catch(e) { alert("❌ Error: " + e.message); }
   }
 
   async function saveGroupPick(group, first, second) {
@@ -2407,23 +2413,25 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
 
   async function savePick() {
     if (!selectedTeam) return;
-    if (EXCLUDED_SURVIVOR.includes(today)) return;
+    if (EXCLUDED_SURVIVOR.includes(todayJornadaKey)) return;
+    // Siempre guardar con jornadaKey (fecha canónica de la jornada)
+    const pickDate = todayJornadaKey;
     setSurvivorPicks(prev => ({
       ...prev,
       [currentUser.username]: {
         ...(prev[currentUser.username] || {}),
-        [today]: { team: selectedTeam, failed: false, result: null }
+        [pickDate]: { team: selectedTeam, failed: false, result: null }
       }
     }));
     try {
-      await sb.from("survivor_picks").delete().eq("username", currentUser.username).eq("date", today);
+      await sb.from("survivor_picks").delete().eq("username", currentUser.username).eq("date", pickDate);
       const {error: spErr} = await sb.from("survivor_picks").insert({
         username: currentUser.username,
-        date: today,
+        date: pickDate,
         team: selectedTeam,
         failed: false,
         result: null,
-        match_id: today
+        match_id: pickDate
       });
       if (spErr) alert("❌ Error guardando survivor: " + spErr.message);
     } catch(e) { alert("❌ Excepción survivor: " + e.message); }
@@ -2552,7 +2560,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           )}
 
           {/* Today's pick input */}
-          {myAlive && !myPicks[today] && (() => {
+          {myAlive && !myPicks[todayJornadaKey] && (() => {
             // Si no hay fecha habilitada por admin → mostrar mensaje
             if (!canPickToday) return (
               <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
@@ -2600,16 +2608,16 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             </div>
             );
           })()}
-          {myPicks[today] && (
+          {myPicks[todayJornadaKey] && (
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>
                 ✅ Pick de hoy confirmado:
               </span>
-              <FlagImg team={myPicks[today].team} size={20}/>
-              <span style={{fontWeight:700,fontSize:16}}>{myPicks[today].team}</span>
-              {myPicks[today].result && (
-                <span style={{fontSize:15,color:myPicks[today].result==="win"?"var(--green)":myPicks[today].failed?"var(--red)":"var(--accent)"}}>
-                  {myPicks[today].result==="win"?"✅ Ganó":myPicks[today].failed?"💀 Falló":"➖ Empate"}
+              <FlagImg team={myPicks[todayJornadaKey].team} size={20}/>
+              <span style={{fontWeight:700,fontSize:16}}>{myPicks[todayJornadaKey].team}</span>
+              {myPicks[todayJornadaKey].result && (
+                <span style={{fontSize:15,color:myPicks[todayJornadaKey].result==="win"?"var(--green)":myPicks[todayJornadaKey].failed?"var(--red)":"var(--accent)"}}>
+                  {myPicks[todayJornadaKey].result==="win"?"✅ Ganó":myPicks[todayJornadaKey].failed?"💀 Falló":"➖ Empate"}
                 </span>
               )}
             </div>
