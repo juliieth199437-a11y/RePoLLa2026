@@ -1798,6 +1798,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ADMIN TAB
 // ============================================================
 function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers}) {
+  const [fechaFiltro, setFechaFiltro] = useState("");
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2206,41 +2207,35 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
             📊 Participantes ({users.filter(u=>!u.isAdmin&&!u.isDemo).length} / 100)
           </div>
           {/* Selector fecha + pendientes por fecha */}
-          {(() => {
-            const [fechaFiltro, setFechaFiltro] = React.useState("");
-            const fechasDisponibles = [...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
-            return (
-              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-                <select value={fechaFiltro} onChange={e=>setFechaFiltro(e.target.value)}
-                  style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E"}}>
-                  <option value="">-- Elegir fecha --</option>
-                  {fechasDisponibles.map(d=><option key={d} value={d}>{d}</option>)}
-                </select>
-                <button disabled={!fechaFiltro} onClick={() => {
-                  const partidos = GROUP_MATCHES.filter(m=>m.date===fechaFiltro);
-                  const jugadores = users.filter(u=>!u.isAdmin&&!u.isDemo);
-                  const rows = [["Jugador","Apodo","Usuario","Partido","¿Envió pronóstico?"]];
-                  jugadores.forEach(u => {
-                    const preds = predictions[u.username]||{};
-                    partidos.forEach(m => {
-                      const p = preds[m.id];
-                      const envio = p && p.homeGoals!==null && p.homeGoals!=="" && p.awayGoals!==null && p.awayGoals!=="" ? "✅ Enviado" : "❌ Pendiente";
-                      rows.push([u.name, u.apodo||u.name, u.username, `${m.home} vs ${m.away}`, envio]);
-                    });
-                  });
-                  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
-                  const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(blob);
-                  a.download = `Pendientes_${fechaFiltro}.csv`;
-                  a.click();
-                  URL.revokeObjectURL(a.href);
-                }} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #1B4F9E",background:fechaFiltro?"rgba(27,79,158,0.08)":"#eee",color:fechaFiltro?"#1B4F9E":"#aaa",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:fechaFiltro?"pointer":"default"}}>
-                  📅 Pendientes por fecha
-                </button>
-              </div>
-            );
-          })()}
+          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+            <select value={fechaFiltro} onChange={e=>setFechaFiltro(e.target.value)}
+              style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E"}}>
+              <option value="">-- Elegir fecha --</option>
+              {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=><option key={d} value={d}>{d}</option>)}
+            </select>
+            <button disabled={!fechaFiltro} onClick={() => {
+              const partidos = GROUP_MATCHES.filter(m=>m.date===fechaFiltro);
+              const jugadores = users.filter(u=>!u.isAdmin&&!u.isDemo);
+              const rows = [["Jugador","Apodo","Usuario","Partido","¿Envió pronóstico?"]];
+              jugadores.forEach(u => {
+                const preds = predictions[u.username]||{};
+                partidos.forEach(m => {
+                  const p = preds[m.id];
+                  const envio = p && p.homeGoals!==null && p.homeGoals!=="" && p.awayGoals!==null && p.awayGoals!=="" ? "✅ Enviado" : "❌ Pendiente";
+                  rows.push([u.name, u.apodo||u.name, u.username, `${m.home} vs ${m.away}`, envio]);
+                });
+              });
+              const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+              const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = `Pendientes_${fechaFiltro}.csv`;
+              a.click();
+              URL.revokeObjectURL(a.href);
+            }} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #1B4F9E",background:fechaFiltro?"rgba(27,79,158,0.08)":"#eee",color:fechaFiltro?"#1B4F9E":"#aaa",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:fechaFiltro?"pointer":"default"}}>
+              📅 Pendientes por fecha
+            </button>
+          </div>
           <button onClick={() => {
             const jugadores = users.filter(u => !u.isAdmin && !u.isDemo);
             const rows = [];
