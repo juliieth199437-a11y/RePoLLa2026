@@ -624,10 +624,27 @@ export default function App() {
     return () => { sb.removeChannel(ch1); sb.removeChannel(ch2); sb.removeChannel(ch3); };
   }, []);
 
-  function login(username, password) {
+  async function login(username, password) {
     const u = users.find(u => u.username===username && u.password===password);
     if (u) {
       setCurrentUser({...u, survivorEnabled: u.survivorEnabled === true});
+      // Recargar predictions frescas de Supabase para este usuario
+      try {
+        const { data: myPreds } = await sb.from("predictions").select("*").eq("username", username);
+        if (myPreds) {
+          setPredictions(prev => ({
+            ...prev,
+            [username]: myPreds.reduce((acc, p) => {
+              acc[p.match_id] = {
+                homeGoals: p.home_goals !== null ? Number(p.home_goals) : null,
+                awayGoals: p.away_goals !== null ? Number(p.away_goals) : null,
+                penaltyWinner: p.penalty_winner
+              };
+              return acc;
+            }, {})
+          }));
+        }
+      } catch(e) { console.error("Error recargando predictions:", e); }
       return true;
     }
     return false;
@@ -869,7 +886,7 @@ function LoginScreen({login}) {
   const [username,setUsername]=useState("");
   const [password,setPassword]=useState("");
   const [error,setError]=useState("");
-  function doLogin(){if(!login(username,password))setError("Usuario o contraseña incorrectos");}
+  async function doLogin(){const ok = await login(username,password); if(!ok) setError("Usuario o contraseña incorrectos");}
   return (
     <div className="login-wrap">
       
@@ -2406,7 +2423,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
 
   // ── My data ─────────────────────────────────────────────────
   const myPicks = survivorPicks[currentUser.username] || {};
-  const myUsedTeams = Object.values(myPicks).map(p => p.team).filter(Boolean);
+  // Solo contar como "usado" si el pick ya tiene resultado marcado por admin
+  // Así el equipo elegido no bloquea al jugador hasta confirmar resultado
+  const myUsedTeams = Object.values(myPicks)
+    .filter(p => p.result !== null && p.result !== undefined)
+    .map(p => p.team).filter(Boolean);
   const myLivesLost = getLivesLost(currentUser.username);
   const myAlive = myLivesLost < 2;
 
@@ -2585,9 +2606,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 📅 No hay partidos de grupos en la jornada de hoy.
               </div>
             );
-            // Cierre: mismo que el primer partido de la jornada
-            const firstMatch = todayMatches.sort((a,b)=>a.closeTime>b.closeTime?1:-1)[0];
-            const closed = firstMatch ? isMatchClosed(firstMatch.closeTime, firstMatch.date) : false;
+            // Cierre Survivor: 11PM Colombia del día survivorMaxDate
+            const survivorClose = survivorMaxDate
+              ? new Date(survivorMaxDate + "T23:00:00-05:00")
+              : null;
+            const closed = survivorClose ? new Date() >= survivorClose : false;
             if (closed) return (
               <div style={{background:"rgba(196,30,58,0.1)",border:"1px solid #C41E3A",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
                 🔒 El plazo para enviar tu pick de esta jornada ya cerró.
