@@ -936,7 +936,7 @@ export default function App() {
         {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} clasifBlocked={clasifBlocked} />}
         {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
-        {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} />}
+        {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
         {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
@@ -1342,7 +1342,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick, clasifBlock
 // ============================================================
 // RANKING TAB
 // ============================================================
-function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults, blockedDates=[]}) {
+function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults, blockedDates=[], clasifBlocked=false, fase3Blocked=false}) {
   const [selected, setSelected] = React.useState(null);
   const [rankTab, setRankTab] = React.useState("fase1");
   const me = leaderboard.find(u=>u.username===currentUser.username);
@@ -1422,7 +1422,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
               return (
                 <div key={group} style={{background:"var(--card)",borderRadius:10,padding:"10px 12px",border:"1px solid var(--border)"}}>
                   <div style={{fontWeight:700,marginBottom:4}}>Grupo {group}</div>
-                  {res
+                  {(res || clasifBlocked)
                     ? <><div style={{fontSize:13}}>1° {pick.first}</div><div style={{fontSize:13}}>2° {pick.second}</div></>
                     : <div style={{fontSize:12,color:"var(--muted)"}}>🔒 Oculto hasta cierre</div>}
                   {res && <><div style={{fontSize:12,color:"var(--muted)",marginTop:4}}>Real: {res.first} / {res.second}</div>
@@ -1470,7 +1470,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
                 return (
                   <div key={key} style={{background:"var(--card)",borderRadius:10,padding:"10px 12px",border:`1px solid ${acerto?"var(--green)":"var(--border)"}`}}>
                     <div style={{fontSize:12,color:"var(--muted)",fontWeight:700}}>{label}</div>
-                    {finalResults?.[key]
+                    {(finalResults?.[key] || fase3Blocked)
                       ? <div style={{fontSize:14,fontWeight:700,marginTop:2}}>{fPicks[key]||"—"}</div>
                       : <div style={{fontSize:12,color:"var(--muted)",marginTop:2}}>🔒 Oculto hasta el cierre</div>}
                     {finalResults?.[key] && <div style={{fontSize:12,color:"var(--muted)"}}>Real: {finalResults[key]}</div>}
