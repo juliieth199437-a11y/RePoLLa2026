@@ -2212,12 +2212,23 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               <option value="">-- Elegir fecha --</option>
               {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=><option key={d} value={d}>{d}</option>)}
             </select>
-            <button disabled={!fechaFiltro} onClick={() => {
+            <button disabled={!fechaFiltro} onClick={async () => {
+              // Consultar Supabase en tiempo real para tener datos frescos
+              const { data: freshPreds, error: fpErr } = await sb.from("predictions").select("username,match_id,home_goals,away_goals");
+              if (fpErr) { alert("❌ Error consultando Supabase: " + fpErr.message); return; }
+              alert(`✅ Supabase devolvió ${freshPreds ? freshPreds.length : 0} registros totales.\nPartido A1: ${freshPreds ? freshPreds.filter(p=>p.match_id==="A1").length : 0} pronósticos.`);
+              const predMap = {};
+              if (freshPreds) {
+                freshPreds.forEach(p => {
+                  if (!predMap[p.username]) predMap[p.username] = {};
+                  predMap[p.username][p.match_id] = {homeGoals: p.home_goals, awayGoals: p.away_goals};
+                });
+              }
               const partidos = GROUP_MATCHES.filter(m=>m.date===fechaFiltro);
               const jugadores = users.filter(u=>!u.isAdmin&&!u.isDemo);
               const rows = [["Jugador","Apodo","Usuario","Partido","¿Envió pronóstico?"]];
               jugadores.forEach(u => {
-                const preds = predictions[u.username]||{};
+                const preds = predMap[u.username]||{};
                 partidos.forEach(m => {
                   const p = preds[m.id];
                   const envio = p && p.homeGoals!==null && p.homeGoals!=="" && p.awayGoals!==null && p.awayGoals!=="" ? "✅ Enviado" : "❌ Pendiente";
