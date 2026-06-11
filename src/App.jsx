@@ -1045,7 +1045,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick, fase3Bl
   const fields=[{k:"champion",l:"🥇 Campeón",pts:12},{k:"runnerUp",l:"🥈 Subcampeón",pts:9},{k:"third",l:"🥉 Tercer Puesto",pts:7},{k:"fourth",l:"4️⃣ Cuarto Puesto",pts:5}];
   const [fase3Error, setFase3Error] = useState("");
   // Cierre Fase 3: 9 de junio 2026 a las 22:00 Colombia (UTC-5)
-  const fase3Closed = fase3Blocked || new Date() >= new Date("2026-06-09T23:00:00-05:00");
+  const fase3Closed = fase3Blocked;
   function doSave(){
     if(!local.champion||!local.runnerUp||!local.third||!local.fourth){
       setFase3Error("⚠️ Debes seleccionar los 4 puestos antes de enviar.");
@@ -1258,7 +1258,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick, clasifBlock
   const [saved, setSaved]=useState({});
   const [errors, setErrors]=useState({});
   // Cierre clasificación grupos: 9 de junio 2026 a las 22:00 Colombia (UTC-5)
-  const groupsClosed = clasifBlocked || new Date() >= new Date("2026-06-09T23:00:00-05:00");
+  const groupsClosed = clasifBlocked;
   function getPick(g){return local[g]||groupPicks[g]||{};}
   function handleSave(g){
     const p=getPick(g);
