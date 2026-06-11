@@ -214,8 +214,13 @@ const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); r
 
 
 // Is match open for predictions? Closes at 10PM Colombia the day before the match.
+// Exception: matches on 2026-06-11 and 2026-06-12 close on 2026-06-11 at 11PM Colombia.
 function isMatchOpen(match) {
   if (!match.date) return true;
+  // Excepción jornada 1: partidos del 11 y 12 jun cierran el 11 jun a las 11PM
+  if (match.date === "2026-06-11" || match.date === "2026-06-12") {
+    return new Date() < new Date("2026-06-11T23:00:00-05:00");
+  }
   const [y, mo, d] = match.date.split("-");
   const prevDay = new Date(parseInt(y), parseInt(mo)-1, parseInt(d)-1);
   const prevStr = prevDay.getFullYear() + "-" +
@@ -2621,7 +2626,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           )}
 
           {/* Today's pick input */}
-          {myAlive && !myPicks[todayJornadaKey] && (() => {
+          {(() => {
+            // Verificar si ya envió pick para esta jornada en CUALQUIERA de sus fechas
+            const alreadyPickedThisJornada = jornadaMatchDates.some(d => myPicks[d]) || !!myPicks[todayJornadaKey];
+            if (!myAlive || alreadyPickedThisJornada) return null;
+            return (() => {
             // Si no hay fecha habilitada por admin → mostrar mensaje
             if (!canPickToday) return (
               <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
@@ -2642,7 +2651,9 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             return (
             <div>
               <div style={{fontSize:15,color:"#6B7A99",marginBottom:8,fontWeight:700}}>
-                🎯 Tu pick de hoy · {fmtD(today)}
+                🎯 Tu pick · Jornada {jornadaMatchDates.length > 1
+                  ? jornadaMatchDates.map(d => fmtD(d)).join(" y ")
+                  : fmtD(today)}
               </div>
               {availableTeams.length > 0 ? (
                 <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
@@ -2666,24 +2677,29 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
               )}
             </div>
             );
-          })()}
-          {myPicks[todayJornadaKey] && (
+          })()})()}
+          {(() => {
+            // Mostrar pick enviado — buscar en jornadaKey o en cualquier fecha de la jornada
+            const sentPick = myPicks[todayJornadaKey] || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean);
+            if (!sentPick) return null;
+            return (
             <div style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>✅ Pick enviado — no se puede cambiar:</span>
-                <FlagImg team={myPicks[todayJornadaKey].team} size={20}/>
-                <span style={{fontWeight:700,fontSize:16}}>{myPicks[todayJornadaKey].team}</span>
-                {myPicks[todayJornadaKey].result && (
-                  <span style={{fontSize:15,color:myPicks[todayJornadaKey].result==="win"?"var(--green)":myPicks[todayJornadaKey].failed?"var(--red)":"var(--accent)"}}>
-                    {myPicks[todayJornadaKey].result==="win"?"✅ Ganó":myPicks[todayJornadaKey].failed?"💀 Falló":"➖ Empate"}
+                <FlagImg team={sentPick.team} size={20}/>
+                <span style={{fontWeight:700,fontSize:16}}>{sentPick.team}</span>
+                {sentPick.result && (
+                  <span style={{fontSize:15,color:sentPick.result==="win"?"var(--green)":sentPick.failed?"var(--red)":"var(--accent)"}}>
+                    {sentPick.result==="win"?"✅ Ganó":sentPick.failed?"💀 Falló":"➖ Empate"}
                   </span>
                 )}
-                {!myPicks[todayJornadaKey].result && (
+                {!sentPick.result && (
                   <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>
                 )}
               </div>
             </div>
-          )}
+            );
+          })()}
           {!myAlive && (
             <div style={{fontSize:16,color:"#C41E3A",fontWeight:700,textAlign:"center",padding:"10px 0"}}>
               💀 Has sido eliminado del Survivor. ¡Mejor suerte la próxima!
