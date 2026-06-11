@@ -250,14 +250,16 @@ function isMatchVisible(match) {
 // Are predictions visible?
 // Fase 1 (grupos): visible después del closeTime (hora de cierre de pronósticos)
 // Fase 2+ (eliminatorias): visible solo después de la hora de inicio del partido
-function arePredictionsVisible(match) {
+function arePredictionsVisible(match, blockedDates=[]) {
+  // Si el admin bloqueó la fecha → pronósticos visibles para todos
+  if (blockedDates.includes(match.date)) return true;
   if (match.fase >= 2) {
     // Fase 2+: ocultar hasta que empiece el partido
     const [h,m] = match.time.split(":").map(Number);
     const start = new Date(`${match.date}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00-05:00`);
     return new Date() >= start;
   }
-  // Fase 1: visible después del closeTime
+  // Fase 1: visible después del closeTime automático
   if (!match.closeTime) return true;
   const [h,m] = match.closeTime.split(":").map(Number);
   const close = new Date(`${match.date}T${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:00-05:00`);
@@ -904,7 +906,7 @@ export default function App() {
         {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
         {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} />}
-        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} />}
+        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
@@ -1309,7 +1311,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick, clasifBlock
 // ============================================================
 // RANKING TAB
 // ============================================================
-function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults}) {
+function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults, blockedDates=[]}) {
   const [selected, setSelected] = React.useState(null);
   const [rankTab, setRankTab] = React.useState("fase1");
   const me = leaderboard.find(u=>u.username===currentUser.username);
@@ -1355,7 +1357,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
           {fase1Matches.map(m => {
             const pred=preds[m.id]; const res=results[m.id];
             const pts = pred&&res ? calcMatchScore(m.id,pred,res) : null;
-            const visible = arePredictionsVisible(m);
+            const visible = arePredictionsVisible(m, blockedDates);
             return (
               <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <div style={{flex:1,minWidth:140}}>
@@ -1408,7 +1410,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
           {fase2Matches.map(m => {
             const pred=preds[m.id]; const res=results[m.id];
             const pts = pred&&res ? calcMatchScore(m.id,pred,res) : null;
-            const visible = arePredictionsVisible(m);
+            const visible = arePredictionsVisible(m, blockedDates);
             return (
               <div key={m.id} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:6,border:"1px solid var(--border)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <div style={{flex:1,minWidth:140}}>
@@ -1480,7 +1482,8 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
 // ============================================================
 // VER PRONÓSTICOS TAB — partido-centric, solo visible tras cierre
 // ============================================================
-function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults}) {
+function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, blockedDates=[]}) {
+  const [freshPreds, setFreshPreds] = useState({});
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
   const participants=users.filter(u=>!u.isAdmin && !u.isDemo);
@@ -1507,7 +1510,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
         if (!pred) return;
         const res = results[m.id];
         // Jugadores: solo exportar si el partido ya cerró (pronóstico visible)
-        if (!currentUser.isAdmin && !arePredictionsVisible(m)) return;
+        if (!currentUser.isAdmin && !arePredictionsVisible(m, blockedDates)) return;
         let acertoMarcador = "", acertoGanador = "", pts = "";
         if (res) {
           acertoMarcador = (pred.homeGoals===res.homeGoals && pred.awayGoals===res.awayGoals) ? "SÍ" : "NO";
@@ -1597,11 +1600,21 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
         <div className="matches-grid">
           {matches.map(match=>{
             const result=results[match.id];
-            const visible=arePredictionsVisible(match);
+            const visible=arePredictionsVisible(match, blockedDates);
             const count=participants.filter(u=>predictions[u.username]?.[match.id]?.homeGoals!=null&&predictions[u.username]?.[match.id]?.homeGoals!=="").length;
             const correct=participants.filter(u=>getScore(match.id,u.username)>0).length;
             return (
-              <div key={match.id} className="match-card" style={{cursor:"pointer"}} onClick={()=>visible&&setSelectedMatch(match.id)}>
+              <div key={match.id} className="match-card" style={{cursor:"pointer"}} onClick={async()=>{
+                  if (!visible) return;
+                  setSelectedMatch(match.id);
+                  // Cargar pronósticos frescos de Supabase para este partido
+                  const {data: fp} = await sb.from("predictions").select("username,home_goals,away_goals,penalty_winner").eq("match_id", match.id);
+                  if (fp) {
+                    const m = {};
+                    fp.forEach(p => { m[p.username] = {homeGoals: p.home_goals !== null ? Number(p.home_goals) : null, awayGoals: p.away_goals !== null ? Number(p.away_goals) : null, penaltyWinner: p.penalty_winner}; });
+                    setFreshPreds(m);
+                  }
+                }}>
                 <div style={{minWidth:120,flexShrink:0}}>
                   <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#1B4F9E"}}>{match.id}</div>
                   <div style={{fontSize:14,color:"#6B7A99"}}>{fmtDate(match.date)} · {match.time}</div>
@@ -1651,7 +1664,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {participants.map(u=>{
-              const pred=predictions[u.username]?.[activeMatch.id];
+              const pred=freshPreds[u.username] ?? predictions[u.username]?.[activeMatch.id];
               const pts=getScore(activeMatch.id, u.username);
               const res=results[activeMatch.id];
               return (
