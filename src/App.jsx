@@ -215,8 +215,11 @@ const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); r
 
 // Is match open for predictions? Closes at 10PM Colombia the day before the match.
 // Exception: matches on 2026-06-11 and 2026-06-12 close on 2026-06-11 at 11PM Colombia.
-function isMatchOpen(match) {
+// blockedDates: array de fechas bloqueadas manualmente por el admin
+function isMatchOpen(match, blockedDates=[]) {
   if (!match.date) return true;
+  // Bloqueo manual por fecha
+  if (blockedDates.includes(match.date)) return false;
   // Excepción jornada 1: partidos del 11 y 12 jun cierran el 11 jun a las 11PM
   if (match.date === "2026-06-11" || match.date === "2026-06-12") {
     return new Date() < new Date("2026-06-11T23:00:00-05:00");
@@ -363,6 +366,10 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState("hoy");
   const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
+  // Controles de bloqueo manual (admin)
+  const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 bloqueadas
+  const [clasifBlocked, setClasifBlocked] = useState(false); // Clasificación bloqueada
+  const [fase3Blocked, setFase3Blocked] = useState(false); // Fase3 bloqueada
 
   // testMode eliminado — modo producción real
 
@@ -593,6 +600,18 @@ export default function App() {
 
         // testMode eliminado
 
+        // Cargar controles de bloqueo manual
+        try {
+          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked"]);
+          if (cfgAll) {
+            cfgAll.forEach(c => {
+              if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
+              if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
+              if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
+            });
+          }
+        } catch(e) {}
+
         // Cargar survivorTestDate global
         try {
           const { data: scfg } = await sb.from("config").select("*").eq("key","survivorTestDate").single();
@@ -606,6 +625,20 @@ export default function App() {
       }
     }
     loadAll();
+    // Polling cada 30s para que jugadores vean cambios de bloqueo del admin
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked"]);
+        if (cfgPoll) {
+          cfgPoll.forEach(c => {
+            if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
+            if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
+            if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
+          });
+        }
+      } catch(e) {}
+    }, 30000);
+    return () => clearInterval(pollInterval);
 
     // Realtime: escuchar cambios en resultados y pagos
     const ch1 = sb.channel("results-changes")
@@ -866,19 +899,19 @@ export default function App() {
         ))}
       </nav>
       <div className="content">
-        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} />}
-        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} />}
+        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
+        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
         {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} />}
-        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} />}
-        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} />}
-        {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} />}
+        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} clasifBlocked={clasifBlocked} />}
+        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
+        {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
         {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} />}
       </div>
     </div>
   );
@@ -917,7 +950,7 @@ function LoginScreen({login}) {
 // ============================================================
 // HOY TAB — only today's matches
 // ============================================================
-function HoyTab({currentUser, predictions, results, savePrediction}) {
+function HoyTab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   // Antes del inicio del Mundial: anclar al 11 jun para que la gente pueda enviar pronósticos
   const MUNDIAL_START = "2026-06-11";
@@ -948,7 +981,7 @@ function HoyTab({currentUser, predictions, results, savePrediction}) {
 // ============================================================
 // FASE 1 TAB
 // ============================================================
-function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick}) {
+function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick, blockedDates=[], clasifBlocked=false}) {
   const [section, setSection] = useState("partidos");
   const matches = GROUP_MATCHES; // Todos los partidos visibles siempre
 
@@ -961,10 +994,10 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
       </div>
       {section==="partidos" && (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       )}
       {section==="grupos" && (
-        <GroupPicksSection groupPicks={groupPicks} groupResults={groupResults} saveGroupPick={saveGroupPick} />
+        <GroupPicksSection groupPicks={groupPicks} groupResults={groupResults} saveGroupPick={saveGroupPick} clasifBlocked={clasifBlocked} />
       )}
     </div>
   );
@@ -973,7 +1006,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
 // ============================================================
 // FASE 2 TAB
 // ============================================================
-function Fase2Tab({currentUser, predictions, results, savePrediction}) {
+function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
   const [sub, setSub] = useState("dieciseisavos");
   const subPhases = [
     {key:"dieciseisavos", label:"Dieciseisavos"},
@@ -1008,13 +1041,13 @@ function Fase2Tab({currentUser, predictions, results, savePrediction}) {
 // ============================================================
 // FASE 3 TAB
 // ============================================================
-function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
+function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick, fase3Blocked=false}) {
   const [local, setLocal] = useState(finalPicks);
   const [saved, setSaved] = useState(false);
   const fields=[{k:"champion",l:"🥇 Campeón",pts:12},{k:"runnerUp",l:"🥈 Subcampeón",pts:9},{k:"third",l:"🥉 Tercer Puesto",pts:7},{k:"fourth",l:"4️⃣ Cuarto Puesto",pts:5}];
   const [fase3Error, setFase3Error] = useState("");
   // Cierre Fase 3: 9 de junio 2026 a las 22:00 Colombia (UTC-5)
-  const fase3Closed = new Date() >= new Date("2026-06-09T23:00:00-05:00");
+  const fase3Closed = fase3Blocked || new Date() >= new Date("2026-06-09T23:00:00-05:00");
   function doSave(){
     if(!local.champion||!local.runnerUp||!local.third||!local.fourth){
       setFase3Error("⚠️ Debes seleccionar los 4 puestos antes de enviar.");
@@ -1065,7 +1098,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick}) {
 // ============================================================
 // MATCH LIST — shared component
 // ============================================================
-function MatchList({matches, predictions, results, savePrediction, allPredictions, showScores}) {
+function MatchList({matches, predictions, results, savePrediction, allPredictions, showScores, blockedDates=[]}) {
   const [local, setLocal] = useState({});
   const [saved, setSaved] = useState({});
   const [confirming, setConfirming] = useState(null);
@@ -1114,7 +1147,7 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
       {matches.map(match=>{
         const pred = getPred(match.id);
         const result = results[match.id];
-        const open = isMatchOpen(match);
+        const open = isMatchOpen(match, blockedDates);
         const pred_saved = predictions[match.id]; const alreadySaved = !!(pred_saved && pred_saved.homeGoals != null && pred_saved.homeGoals !== '' && pred_saved.awayGoals != null && pred_saved.awayGoals !== '');
         const locked = !open || alreadySaved || !!result;
         const hasPred = pred.homeGoals!=null && pred.homeGoals!=="" && pred.awayGoals!=null && pred.awayGoals!=="";
@@ -1222,12 +1255,12 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
 // ============================================================
 // GROUP PICKS SECTION
 // ============================================================
-function GroupPicksSection({groupPicks, groupResults, saveGroupPick}) {
+function GroupPicksSection({groupPicks, groupResults, saveGroupPick, clasifBlocked=false}) {
   const [local, setLocal]=useState({});
   const [saved, setSaved]=useState({});
   const [errors, setErrors]=useState({});
   // Cierre clasificación grupos: 9 de junio 2026 a las 22:00 Colombia (UTC-5)
-  const groupsClosed = new Date() >= new Date("2026-06-09T23:00:00-05:00");
+  const groupsClosed = clasifBlocked || new Date() >= new Date("2026-06-09T23:00:00-05:00");
   function getPick(g){return local[g]||groupPicks[g]||{};}
   function handleSave(g){
     const p=getPick(g);
@@ -1797,7 +1830,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2205,6 +2238,62 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:"#1B4F9E",letterSpacing:2}}>
             📊 Participantes ({users.filter(u=>!u.isAdmin&&!u.isDemo).length} / 100)
           </div>
+          {/* ── Controles de bloqueo ── */}
+          <div style={{background:"rgba(196,30,58,0.06)",border:"1px solid rgba(196,30,58,0.3)",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#C41E3A",letterSpacing:1,marginBottom:10}}>🔒 Control de bloqueo de envíos</div>
+
+            {/* Fase 1 por fecha */}
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:6}}>⚽ Fase 1 — Bloquear fecha específica:</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=>(
+                  <button key={d} onClick={async()=>{
+                    const newBlocked = blockedDates.includes(d)
+                      ? blockedDates.filter(x=>x!==d)
+                      : [...blockedDates, d];
+                    setBlockedDates(newBlocked);
+                    await sb.from("config").upsert({key:"blockedDates",value:newBlocked.join(",")},{onConflict:"key"});
+                  }} style={{padding:"5px 10px",borderRadius:8,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
+                    background:blockedDates.includes(d)?"#C41E3A":"transparent",
+                    borderColor:blockedDates.includes(d)?"#C41E3A":"var(--border)",
+                    color:blockedDates.includes(d)?"#fff":"var(--text)"}}>
+                    {blockedDates.includes(d)?"🔒":"🔓"} {d.slice(5)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Clasificación */}
+            <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:8}}>
+              <span style={{fontSize:13,fontWeight:700}}>📊 Clasificación grupos:</span>
+              <button onClick={async()=>{
+                const newVal = !clasifBlocked;
+                setClasifBlocked(newVal);
+                await sb.from("config").upsert({key:"clasifBlocked",value:newVal?"true":"false"},{onConflict:"key"});
+              }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
+                background:clasifBlocked?"#C41E3A":"rgba(45,138,62,0.1)",
+                borderColor:clasifBlocked?"#C41E3A":"#2D8A3E",
+                color:clasifBlocked?"#fff":"#2D8A3E"}}>
+                {clasifBlocked?"🔒 Bloqueado — clic para abrir":"🔓 Abierto — clic para bloquear"}
+              </button>
+            </div>
+
+            {/* Fase 3 */}
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <span style={{fontSize:13,fontWeight:700}}>🏆 Fase 3 (podio):</span>
+              <button onClick={async()=>{
+                const newVal = !fase3Blocked;
+                setFase3Blocked(newVal);
+                await sb.from("config").upsert({key:"fase3Blocked",value:newVal?"true":"false"},{onConflict:"key"});
+              }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
+                background:fase3Blocked?"#C41E3A":"rgba(45,138,62,0.1)",
+                borderColor:fase3Blocked?"#C41E3A":"#2D8A3E",
+                color:fase3Blocked?"#fff":"#2D8A3E"}}>
+                {fase3Blocked?"🔒 Bloqueado — clic para abrir":"🔓 Abierto — clic para bloquear"}
+              </button>
+            </div>
+          </div>
+
           {/* Selector fecha + pendientes por fecha */}
           <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
             <select value={fechaFiltro} onChange={e=>setFechaFiltro(e.target.value)}
@@ -2342,7 +2431,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 // ============================================================
 // MAÑANA TAB
 // ============================================================
-function MananaTab({currentUser, predictions, results, savePrediction}) {
+function MananaTab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
   // Antes del inicio: mostrar el 12 jun (jornada 1 segundo día)
@@ -2363,7 +2452,7 @@ function MananaTab({currentUser, predictions, results, savePrediction}) {
         </div>
       ) : (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       )}
     </div>
   );
