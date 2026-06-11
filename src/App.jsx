@@ -638,8 +638,6 @@ export default function App() {
         }
       } catch(e) {}
     }, 30000);
-    return () => clearInterval(pollInterval);
-
     // Realtime: escuchar cambios en resultados y pagos
     const ch1 = sb.channel("results-changes")
       .on("postgres_changes", {event:"*", schema:"public", table:"results"}, payload => {
@@ -659,7 +657,7 @@ export default function App() {
         if (p) setPredictions(prev => ({...prev, [p.username]:{...(prev[p.username]||{}), [p.match_id]:{homeGoals:p.home_goals, awayGoals:p.away_goals, penaltyWinner:p.penalty_winner}}}));
       }).subscribe();
 
-    return () => { sb.removeChannel(ch1); sb.removeChannel(ch2); sb.removeChannel(ch3); };
+    return () => { clearInterval(pollInterval); sb.removeChannel(ch1); sb.removeChannel(ch2); sb.removeChannel(ch3); };
   }, []);
 
   async function login(username, password) {
