@@ -2423,11 +2423,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
 
   // ── My data ─────────────────────────────────────────────────
   const myPicks = survivorPicks[currentUser.username] || {};
-  // Solo contar como "usado" si el pick ya tiene resultado marcado por admin
-  // Así el equipo elegido no bloquea al jugador hasta confirmar resultado
-  const myUsedTeams = Object.values(myPicks)
-    .filter(p => p.result !== null && p.result !== undefined)
-    .map(p => p.team).filter(Boolean);
+  // El equipo queda "usado" apenas se envía el pick (no se puede repetir en jornadas futuras)
+  const myUsedTeams = Object.values(myPicks).map(p => p.team).filter(Boolean);
   const myLivesLost = getLivesLost(currentUser.username);
   const myAlive = myLivesLost < 2;
 
@@ -2645,17 +2642,20 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             );
           })()}
           {myPicks[todayJornadaKey] && (
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>
-                ✅ Pick de hoy confirmado:
-              </span>
-              <FlagImg team={myPicks[todayJornadaKey].team} size={20}/>
-              <span style={{fontWeight:700,fontSize:16}}>{myPicks[todayJornadaKey].team}</span>
-              {myPicks[todayJornadaKey].result && (
-                <span style={{fontSize:15,color:myPicks[todayJornadaKey].result==="win"?"var(--green)":myPicks[todayJornadaKey].failed?"var(--red)":"var(--accent)"}}>
-                  {myPicks[todayJornadaKey].result==="win"?"✅ Ganó":myPicks[todayJornadaKey].failed?"💀 Falló":"➖ Empate"}
-                </span>
-              )}
+            <div style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>✅ Pick enviado — no se puede cambiar:</span>
+                <FlagImg team={myPicks[todayJornadaKey].team} size={20}/>
+                <span style={{fontWeight:700,fontSize:16}}>{myPicks[todayJornadaKey].team}</span>
+                {myPicks[todayJornadaKey].result && (
+                  <span style={{fontSize:15,color:myPicks[todayJornadaKey].result==="win"?"var(--green)":myPicks[todayJornadaKey].failed?"var(--red)":"var(--accent)"}}>
+                    {myPicks[todayJornadaKey].result==="win"?"✅ Ganó":myPicks[todayJornadaKey].failed?"💀 Falló":"➖ Empate"}
+                  </span>
+                )}
+                {!myPicks[todayJornadaKey].result && (
+                  <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>
+                )}
+              </div>
             </div>
           )}
           {!myAlive && (
