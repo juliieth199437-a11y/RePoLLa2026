@@ -2710,11 +2710,9 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
               )}
             </div>
             );
-          })()})()}
-          {(() => {
-            // Mostrar pick enviado — buscar en jornadaKey o en cualquier fecha de la jornada
+          })()}
+          {(myPicks[todayJornadaKey] || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean)) && (() => {
             const sentPick = myPicks[todayJornadaKey] || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean);
-            if (!sentPick) return null;
             return (
             <div style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
