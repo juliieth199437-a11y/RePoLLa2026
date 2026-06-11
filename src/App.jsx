@@ -2569,7 +2569,10 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   // ── My data ─────────────────────────────────────────────────
   const myPicks = survivorPicks[currentUser.username] || {};
   // El equipo queda "usado" apenas se envía el pick (no se puede repetir en jornadas futuras)
+  // Equipos usados = todos los picks enviados (sin importar la key de fecha)
   const myUsedTeams = Object.values(myPicks).map(p => p.team).filter(Boolean);
+  // Pick de la jornada actual = cualquier pick cuya fecha mapea a todayJornadaKey
+  // Esto cubre picks guardados con keys incorrectas de versiones anteriores
   const myLivesLost = getLivesLost(currentUser.username);
   const myAlive = myLivesLost < 2;
 
@@ -2759,10 +2762,20 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
 
           {/* Today's pick input */}
           {(() => {
-            const alreadyPickedThisJornada = jornadaMatchDates.some(d => myPicks[d]) || !!myPicks[todayJornadaKey];
+            // Buscar pick en jornadaKey, en cualquier fecha de la jornada,
+            // o en cualquier pick SIN resultado (recién enviado esta jornada)
+            const allPickDates = Object.keys(myPicks);
+            const currentJornadaPick = myPicks[todayJornadaKey]
+              || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean)
+              || (allPickDates.length > 0
+                  ? Object.entries(myPicks)
+                      .filter(([d,p]) => !p.result && jornadaMatchDates.some(jd=>jd===d || getJornadaKeyEarly(d)===todayJornadaKey))
+                      .map(([,p])=>p)[0]
+                  : null);
+            const alreadyPickedThisJornada = !!currentJornadaPick;
             // Si ya envió pick, mostrar el pick enviado
             if (alreadyPickedThisJornada) {
-              const sentPick = myPicks[todayJornadaKey] || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean);
+              const sentPick = currentJornadaPick;
               if (!sentPick) return null;
               return (
                 <div style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
