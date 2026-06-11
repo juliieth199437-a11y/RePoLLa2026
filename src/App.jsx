@@ -2328,21 +2328,29 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
-  // survivorMaxDate = fecha máxima habilitada por admin (ej: "2026-06-12")
+  // survivorMaxDate = fecha hasta la que el admin habilitó envío (ej: "2026-06-12")
   const survivorMaxDate = (survivorTestDate && survivorTestDate !== "off") ? survivorTestDate : null;
-  // today para Survivor:
-  //   - Antes del Mundial: usar survivorMaxDate si está definido (para mostrar los partidos de esa jornada)
-  //     pero limitado al primer día del Mundial (2026-06-11) como mínimo visible
-  //   - Durante el Mundial: fecha real
+
+  // UNIFIED_DAYS se define más abajo, pero necesitamos getJornadaKey aquí
+  // Mapeo inline para calcular jornadaKey de realToday
+  const JORNADA_MAP = {
+    '2026-06-11': '2026-06-11', '2026-06-12': '2026-06-11',
+    '2026-06-28': '2026-06-28', '2026-06-29': '2026-06-28',
+    '2026-07-09': '2026-07-09', '2026-07-10': '2026-07-09',
+  };
+  const getJornadaKeyEarly = (d) => JORNADA_MAP[d] || d;
+
+  // today = siempre la jornadaKey de la fecha real
+  // Antes del Mundial: usar jornadaKey de survivorMaxDate para mostrar los equipos correctos
+  // Durante el Mundial: usar jornadaKey de la fecha real
   const today = realToday < MUNDIAL_START
-    ? (survivorMaxDate ? survivorMaxDate : MUNDIAL_START)
-    : realToday;
-  // Puede enviar pick si:
-  //   - Estamos antes del Mundial y el admin habilitó una fecha
-  //   - O estamos durante el Mundial y today <= survivorMaxDate
-  const canPickToday = survivorMaxDate
-    ? (realToday < MUNDIAL_START || realToday <= survivorMaxDate)
-    : false;
+    ? (survivorMaxDate ? getJornadaKeyEarly(survivorMaxDate) : MUNDIAL_START)
+    : getJornadaKeyEarly(realToday);
+
+  // Puede enviar pick si el admin habilitó una fecha y aún no cerró (11PM del survivorMaxDate)
+  const survivorClose = survivorMaxDate ? new Date(survivorMaxDate + "T23:00:00-05:00") : null;
+  const survivorClosed = survivorClose ? new Date() >= survivorClose : true;
+  const canPickToday = survivorMaxDate ? !survivorClosed : false;
 
   // Polling cada 30s para que jugadores vean cambios del admin en tiempo real
   useEffect(() => {
@@ -2516,6 +2524,28 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
           {isAdmin && (
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:8}}>
+              <button onClick={() => {
+                const rows = [["Usuario","Nombre","Jornada","Equipo","Resultado","Falló"]];
+                survivorUsers.forEach(u => {
+                  const picks = survivorPicks[u.username] || {};
+                  if (Object.keys(picks).length === 0) {
+                    rows.push([u.username, u.name, "Sin pick", "", "", ""]);
+                  } else {
+                    Object.entries(picks).sort(([a],[b])=>a>b?1:-1).forEach(([date, p]) => {
+                      rows.push([u.username, u.name, date, p.team||"", p.result||"pendiente", p.failed?"Sí":"No"]);
+                    });
+                  }
+                });
+                const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+                const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `Survivor_Picks_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #1B4F9E",background:"rgba(27,79,158,0.08)",color:"#1B4F9E",fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                📥 Exportar picks Survivor
+              </button>
               <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Jornada habilitada hasta:</span>
               <select
                 value={survivorMaxDate || "off"}
@@ -2603,12 +2633,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 📅 No hay partidos de grupos en la jornada de hoy.
               </div>
             );
-            // Cierre Survivor: 11PM Colombia del día survivorMaxDate
-            const survivorClose = survivorMaxDate
-              ? new Date(survivorMaxDate + "T23:00:00-05:00")
-              : null;
-            const closed = survivorClose ? new Date() >= survivorClose : false;
-            if (closed) return (
+            // Cierre ya calculado en canPickToday (survivorClosed)
+            if (survivorClosed) return (
               <div style={{background:"rgba(196,30,58,0.1)",border:"1px solid #C41E3A",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
                 🔒 El plazo para enviar tu pick de esta jornada ya cerró.
               </div>
