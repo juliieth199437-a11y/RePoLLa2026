@@ -2867,7 +2867,13 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             const picks = survivorPicks[u.username] || {};
             const livesLost = getLivesLost(u.username);
             const alive = livesLost < 2;
-            const todayPick = picks[today];
+            // Buscar pick de la jornada actual en cualquier key de fecha de la jornada
+            const todayPick = picks[todayJornadaKey]
+              || jornadaMatchDates.map(d=>picks[d]).find(Boolean)
+              || Object.entries(picks)
+                  .filter(([d,p]) => !p.result && (getJornadaKeyEarly(d)===todayJornadaKey || jornadaMatchDates.includes(d)))
+                  .map(([,p])=>p)[0]
+              || null;
             const usedTeams = Object.values(picks).map(p=>p.team).filter(Boolean);
             return (
               <div key={u.username} style={{
