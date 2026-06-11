@@ -1047,7 +1047,16 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
   const [confirming, setConfirming] = useState(null);
   const [inputError, setInputError] = useState({});
 
-  function getPred(matchId){return local[matchId]||predictions[matchId]||{};}
+  function getPred(matchId){
+    const saved = predictions[matchId] || {};
+    const localPred = local[matchId] || {};
+    // Fusionar: usar local si existe, sino usar el guardado de Supabase
+    return {
+      homeGoals: localPred.homeGoals !== undefined ? localPred.homeGoals : saved.homeGoals,
+      awayGoals: localPred.awayGoals !== undefined ? localPred.awayGoals : saved.awayGoals,
+      penaltyWinner: localPred.penaltyWinner !== undefined ? localPred.penaltyWinner : saved.penaltyWinner,
+    };
+  }
 
   function handleChange(matchId, field, value) {
     const clean = value.replace(/[^0-9]/g, "");
