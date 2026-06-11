@@ -970,7 +970,7 @@ function HoyTab({currentUser, predictions, results, savePrediction, blockedDates
         </div>
       ) : (
         <MatchList matches={todayMatches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       )}
     </div>
   );
@@ -1030,7 +1030,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDat
             <div>Esta fase aún no ha comenzado</div>
           </div>
         : <MatchList matches={matches} predictions={predictions} results={results}
-            savePrediction={savePrediction} allPredictions={null} showScores={false} />
+            savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       }
     </div>
   );
