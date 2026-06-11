@@ -367,6 +367,34 @@ function useLocalState(key, init) {
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState("hoy");
+
+  // Recargar predictions completas cuando se abre Ranking o VerPronósticos
+  async function reloadAllPredictions() {
+    try {
+      const allPreds = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data: batch } = await sb.from("predictions").select("*").range(from, from + pageSize - 1);
+        if (!batch || batch.length === 0) break;
+        allPreds.push(...batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+      if (allPreds.length > 0) {
+        const mapped = {};
+        allPreds.forEach(p => {
+          if (!mapped[p.username]) mapped[p.username] = {};
+          mapped[p.username][p.match_id] = {
+            homeGoals: p.home_goals !== null ? Number(p.home_goals) : null,
+            awayGoals: p.away_goals !== null ? Number(p.away_goals) : null,
+            penaltyWinner: p.penalty_winner
+          };
+        });
+        setPredictions(mapped);
+      }
+    } catch(e) { console.error("Error recargando predictions:", e); }
+  }
   const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
   // Controles de bloqueo manual (admin)
   const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 bloqueadas
@@ -895,7 +923,10 @@ export default function App() {
       </header>
       <nav className="nav">
         {navItems.map(i=>(
-          <button key={i.key} className={`nav-btn ${tab===i.key?"active":""}`} onClick={()=>setTab(i.key)}>{i.label}</button>
+          <button key={i.key} className={`nav-btn ${tab===i.key?"active":""}`} onClick={()=>{
+            setTab(i.key);
+            if (i.key==="ranking" || i.key==="pronosticos") reloadAllPredictions();
+          }}>{i.label}</button>
         ))}
       </nav>
       <div className="content">
