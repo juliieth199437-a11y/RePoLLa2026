@@ -636,10 +636,11 @@ export default function App() {
     setPredictions(prev => ({...prev, [username]: {...(prev[username]||{}), [matchId]:{homeGoals,awayGoals,penaltyWinner}}}));
     try {
       // Intentar upsert primero
-      // Convertir a integer explícitamente (Supabase lo requiere)
-      const hg = parseInt(homeGoals, 10);
-      const ag = parseInt(awayGoals, 10);
-      if (isNaN(hg) || isNaN(ag)) { alert("❌ Marcador inválido"); return; }
+      const hg = homeGoals === "" || homeGoals == null ? null : parseInt(homeGoals, 10);
+      const ag = awayGoals === "" || awayGoals == null ? null : parseInt(awayGoals, 10);
+      if (hg === null || ag === null || isNaN(hg) || isNaN(ag)) {
+        alert("❌ Marcador inválido — ingresa ambos valores (puedes poner 0)"); return;
+      }
       const { error: uErr } = await sb.from("predictions").upsert(
         {username, match_id:matchId, home_goals:hg, away_goals:ag, penalty_winner:penaltyWinner||null},
         {onConflict:"username,match_id", ignoreDuplicates:false}
@@ -1050,7 +1051,8 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
 
   function handleChange(matchId, field, value) {
     const clean = value.replace(/[^0-9]/g, "");
-    const num = clean === "" ? "" : parseInt(clean);
+    // Mantener "" si está vacío, o número entero si tiene valor
+    const num = clean === "" ? "" : Math.max(0, parseInt(clean, 10));
     setLocal(p=>({...p,[matchId]:{...getPred(matchId),[field]:num}}));
     setInputError(p=>({...p,[matchId]:""}));
   }
