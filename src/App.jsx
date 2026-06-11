@@ -1798,7 +1798,6 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ADMIN TAB
 // ============================================================
 function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers}) {
-  const [fechaFiltro, setFechaFiltro] = useState("");
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
