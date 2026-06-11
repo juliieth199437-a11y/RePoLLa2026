@@ -641,11 +641,17 @@ export default function App() {
       if (hg === null || ag === null || isNaN(hg) || isNaN(ag)) {
         alert("❌ Marcador inválido — ingresa ambos valores (puedes poner 0)"); return;
       }
-      const { error: uErr } = await sb.from("predictions").upsert(
+      // DIAGNÓSTICO — borrar después
+      console.log("Intentando guardar:", {username, matchId, hg, ag});
+      const { data: uData, error: uErr } = await sb.from("predictions").upsert(
         {username, match_id:matchId, home_goals:hg, away_goals:ag, penalty_winner:penaltyWinner||null},
         {onConflict:"username,match_id", ignoreDuplicates:false}
-      );
-      if (uErr) { alert("❌ Error al guardar: " + uErr.message); }
+      ).select();
+      if (uErr) {
+        alert("❌ ERROR SUPABASE:\nCódigo: " + uErr.code + "\nMensaje: " + uErr.message + "\nDetalle: " + uErr.details);
+      } else {
+        alert("✅ GUARDADO OK\nUsuario: " + username + "\nPartido: " + matchId + "\nMarcador: " + hg + "-" + ag + "\nRegistro: " + JSON.stringify(uData));
+      }
     } catch(e) { alert("❌ Error: " + e.message); }
   }
 
