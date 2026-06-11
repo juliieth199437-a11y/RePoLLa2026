@@ -2213,10 +2213,12 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=><option key={d} value={d}>{d}</option>)}
             </select>
             <button disabled={!fechaFiltro} onClick={async () => {
-              // Consultar Supabase en tiempo real para tener datos frescos
-              const { data: freshPreds, error: fpErr } = await sb.from("predictions").select("username,match_id,home_goals,away_goals");
+              // Consultar Supabase filtrando solo los partidos de la fecha seleccionada
+              const matchIds = GROUP_MATCHES.filter(m=>m.date===fechaFiltro).map(m=>m.id);
+              const { data: freshPreds, error: fpErr } = await sb.from("predictions")
+                .select("username,match_id,home_goals,away_goals")
+                .in("match_id", matchIds);
               if (fpErr) { alert("❌ Error consultando Supabase: " + fpErr.message); return; }
-              alert(`✅ Supabase devolvió ${freshPreds ? freshPreds.length : 0} registros totales.\nPartido A1: ${freshPreds ? freshPreds.filter(p=>p.match_id==="A1").length : 0} pronósticos.`);
               const predMap = {};
               if (freshPreds) {
                 freshPreds.forEach(p => {
