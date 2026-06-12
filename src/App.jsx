@@ -2526,12 +2526,10 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   };
   const getJornadaKeyEarly = (d) => JORNADA_MAP[d] || d;
 
-  // today = siempre la jornadaKey de la fecha real
-  // Antes del Mundial: usar jornadaKey de survivorMaxDate para mostrar los equipos correctos
-  // Durante el Mundial: usar jornadaKey de la fecha real
-  const today = realToday < MUNDIAL_START
-    ? (survivorMaxDate ? getJornadaKeyEarly(survivorMaxDate) : MUNDIAL_START)
-    : getJornadaKeyEarly(realToday);
+  // today = jornada que el admin habilitó (survivorMaxDate), SIEMPRE.
+  // El Survivor funciona "un día antes": el admin habilita la fecha del partido
+  // siguiente y los jugadores ven y eligen los equipos de esa jornada.
+  const today = survivorMaxDate ? getJornadaKeyEarly(survivorMaxDate) : MUNDIAL_START;
 
   // Puede enviar pick si el admin habilitó una fecha y aún no cerró (11PM del survivorMaxDate)
   const survivorClose = survivorMaxDate ? new Date(survivorMaxDate + "T23:00:00-05:00") : null;
