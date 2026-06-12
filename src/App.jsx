@@ -400,6 +400,7 @@ export default function App() {
   const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 bloqueadas
   const [clasifBlocked, setClasifBlocked] = useState(false); // Clasificación bloqueada
   const [fase3Blocked, setFase3Blocked] = useState(false); // Fase3 bloqueada
+  const [survivorBlocked, setSurvivorBlocked] = useState(false); // Survivor bloqueado manualmente
 
   // testMode eliminado — modo producción real
 
@@ -632,12 +633,13 @@ export default function App() {
 
         // Cargar controles de bloqueo manual
         try {
-          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked"]);
+          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked","survivorBlocked"]);
           if (cfgAll) {
             cfgAll.forEach(c => {
               if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
               if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
               if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
+              if (c.key==="survivorBlocked") setSurvivorBlocked(c.value==="true");
             });
           }
         } catch(e) {}
@@ -658,12 +660,13 @@ export default function App() {
     // Polling cada 30s para que jugadores vean cambios de bloqueo del admin
     const pollInterval = setInterval(async () => {
       try {
-        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked"]);
+        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked","survivorBlocked"]);
         if (cfgPoll) {
           cfgPoll.forEach(c => {
             if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
             if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
             if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
+            if (c.key==="survivorBlocked") setSurvivorBlocked(c.value==="true");
           });
         }
       } catch(e) {}
@@ -932,7 +935,7 @@ export default function App() {
       <div className="content">
         {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
         {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
-        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} />}
+        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} survivorBlocked={survivorBlocked} setSurvivorBlocked={setSurvivorBlocked} />}
         {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} clasifBlocked={clasifBlocked} />}
         {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
@@ -2508,7 +2511,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, blockedDa
 // ============================================================
 // SURVIVOR TAB
 // ============================================================
-function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate}) {
+function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate, survivorBlocked, setSurvivorBlocked}) {
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && !u.isDemo && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
@@ -2534,7 +2537,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   // Puede enviar pick si el admin habilitó una fecha y aún no cerró (11PM del survivorMaxDate)
   const survivorClose = survivorMaxDate ? new Date(survivorMaxDate + "T23:00:00-05:00") : null;
   const survivorClosed = survivorClose ? new Date() >= survivorClose : true;
-  const canPickToday = survivorMaxDate ? !survivorClosed : false;
+  const canPickToday = !survivorBlocked && (survivorMaxDate ? !survivorClosed : false);
 
   // Polling cada 30s para que jugadores vean cambios del admin en tiempo real
   useEffect(() => {
@@ -2747,7 +2750,17 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
-              {survivorMaxDate && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ Jugadores pueden enviar pick hasta {survivorMaxDate}</span>}
+              {survivorMaxDate && !survivorBlocked && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ Jugadores pueden enviar pick hasta {survivorMaxDate}</span>}
+              <button onClick={async()=>{
+                const newVal = !survivorBlocked;
+                setSurvivorBlocked(newVal);
+                await sb.from("config").upsert({key:"survivorBlocked",value:newVal?"true":"false"},{onConflict:"key"});
+              }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
+                background:survivorBlocked?"#C41E3A":"rgba(45,138,62,0.1)",
+                borderColor:survivorBlocked?"#C41E3A":"#2D8A3E",
+                color:survivorBlocked?"#fff":"#2D8A3E"}}>
+                {survivorBlocked?"🔒 Bloqueado — clic para abrir":"🔓 Abierto — clic para bloquear"}
+              </button>
             </div>
           )}
         </div>
@@ -2844,6 +2857,12 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             }
             // Si no ha enviado y no está vivo, no mostrar nada
             if (!myAlive) return null;
+            // Si el admin bloqueó manualmente el envío
+            if (survivorBlocked) return (
+              <div style={{background:"rgba(196,30,58,0.1)",border:"1px solid #C41E3A",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
+                🔒 El envío de picks está cerrado por el administrador.
+              </div>
+            );
             // Si no hay fecha habilitada
             if (!canPickToday) return (
               <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
@@ -2939,7 +2958,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     {todayPick
                       ? <span><FlagImg team={todayPick.team} size={14}/> {todayPick.team} hoy</span>
                       : <span style={{color:"#C41E3A"}}>Sin pick hoy</span>}
-                    {usedTeams.length > 0 && <span style={{marginLeft:8}}>· Usados: {usedTeams.length} equipos</span>}
+                    {usedTeams.length > 0 && (
+                      <span style={{marginLeft:8}} title={Object.entries(picks).map(([d,p])=>`${d}: ${p.team}`).join(" | ")}>
+                        · Usados: {usedTeams.length} equipos ({Object.entries(picks).map(([d,p])=>`${d.slice(5)}:${p.team}`).join(", ")})
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{display:"flex",gap:3}}>
@@ -3591,7 +3614,7 @@ function ReglasTab() {
         <div style={itemStyle}>Como primer ítem de desempate, se tendrá en cuenta <strong>quién duró más tiempo sin perder una vida.</strong></div>
         <div style={{...itemStyle,borderColor:"#C41E3A"}}>
           <strong>⚠️ Pick obligatorio y cierre:</strong>
-          <div style={subStyle}>Si la jornada cierra sin que hayas enviado tu pick, perderás automáticamente una vida. El cierre del Survivor es a la misma hora del primer partido de cada jornada.</div>
+          <div style={subStyle}>Si la jornada cierra sin que hayas enviado tu pick, perderás automáticamente una vida. El cierre del Survivor es a las 10:00 PM del día anterior a la jornada (igual que el cierre de los pronósticos de partidos), y será cerrado manualmente por el administrador.</div>
         </div>
         <div style={{...itemStyle,borderColor:"#F5C518"}}>
           <strong>Jornadas unificadas:</strong> Junio 11+12, Junio 28+29 y Julio 9+10 cuentan como una sola jornada, permitiendo escoger entre más partidos y equipos disponibles. En semifinales y final, cada partido cuenta como jornada individual. El partido por el tercer puesto <strong>no aplica</strong> para el Survivor.
