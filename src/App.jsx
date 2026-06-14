@@ -2729,6 +2729,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
           {isAdmin && (
+            <>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:8}}>
               <button onClick={() => {
                 const rows = [["Usuario","Nombre","Jornada","Equipo","Resultado","Falló"]];
@@ -2792,6 +2793,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 );
               })}
             </div>
+            </>
           )}
         </div>
         <div style={{fontSize:15,color:"#E8EDF5",marginTop:4,lineHeight:1.7}}>
