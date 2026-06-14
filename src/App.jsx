@@ -1520,6 +1520,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
   const [freshPreds, setFreshPreds] = useState({});
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
+  const [fechaFiltroVer, setFechaFiltroVer]=useState("");
   const participants=users.filter(u=>!u.isAdmin && !u.isDemo);
   const subPhases=[
     {key:"grupos",label:"Grupos",fase:1},
@@ -1602,7 +1603,14 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
     a.click();
     URL.revokeObjectURL(url);
   }
-  const matches = ALL_MATCHES.filter(m=>m.phase===phase); // Todos visibles
+  const matches = ALL_MATCHES.filter(m=>m.phase===phase)
+    .filter(m => phase!=="grupos" || !fechaFiltroVer || m.date===fechaFiltroVer)
+    .sort((a,b) => {
+      // Ordenar cronológicamente por fecha y hora
+      const da = a.date + "T" + (a.time||"00:00");
+      const db = b.date + "T" + (b.time||"00:00");
+      return da.localeCompare(db);
+    });
 
   function getScore(matchId, username) {
     // Usar freshPreds si están disponibles (datos frescos de Supabase para este partido)
@@ -1631,9 +1639,22 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
       <div className="phase-tabs">
         {subPhases.map(p=>(
           <button key={p.key} className={`phase-tab ${phase===p.key?"active":""}`}
-            onClick={()=>{setPhase(p.key);setSelectedMatch(null);}}>{p.label}</button>
+            onClick={()=>{setPhase(p.key);setSelectedMatch(null);setFechaFiltroVer("");}}>{p.label}</button>
         ))}
       </div>
+
+      {phase==="grupos" && (
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+          <button onClick={()=>setFechaFiltroVer("")} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
+            background:fechaFiltroVer===""?"#1B4F9E":"transparent",borderColor:fechaFiltroVer===""?"#1B4F9E":"var(--border)",
+            color:fechaFiltroVer===""?"#fff":"var(--text)"}}>Todas</button>
+          {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(f=>(
+            <button key={f} onClick={()=>setFechaFiltroVer(f)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
+              background:fechaFiltroVer===f?"#1B4F9E":"transparent",borderColor:fechaFiltroVer===f?"#1B4F9E":"var(--border)",
+              color:fechaFiltroVer===f?"#fff":"var(--text)"}}>{f.slice(5)}</button>
+          ))}
+        </div>
+      )}
 
       {!selectedMatch && (
         <div className="matches-grid">
@@ -2515,6 +2536,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && !u.isDemo && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
+  // Jornada seleccionada en "Ver Survivor de..." (admin)
+  const [viewJornada, setViewJornada] = useState("");
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
   // survivorMaxDate = fecha hasta la que el admin habilitó envío (ej: "2026-06-12")
@@ -2558,34 +2581,27 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
     await sb.from("config").upsert({key:"survivorTestDate", value:date},{onConflict:"key"});
   }
 
-  async function checkMissingPicks() {
-    const allJornadaKeys = [...new Set(groupDates.map(d => getJornadaKey(d)))].sort();
-    const currentJornadaKey = getJornadaKey(today);
-    const pastJornadas = allJornadaKeys.filter(j => j < currentJornadaKey);
-    if (pastJornadas.length === 0) {
-      alert("ℹ️ No hay jornadas cerradas. Fecha actual: " + today + " (jornada: " + currentJornadaKey + "). Avanza a un día posterior.");
-      return;
-    }
+  // Verifica picks faltantes para UNA jornada específica elegida por el admin
+  async function checkMissingPicks(jornadaKey) {
+    if (!jornadaKey) { alert("⚠️ Elige una jornada primero."); return; }
     let sinPick = 0;
-    for (const jornadaKey of pastJornadas) {
-      for (const u of survivorUsers) {
-        const userPicks = survivorPicks[u.username] || {};
-        const hasPick = Object.keys(userPicks).some(d => getJornadaKey(d) === jornadaKey);
-        if (!hasPick) {
-          const {error} = await sb.from("survivor_picks").insert({
-            username: u.username, date: jornadaKey, team: "Sin pick",
-            failed: true, result: "nopick", match_id: jornadaKey
-          });
-          if (!error) {
-            setSurvivorPicks(prev => ({...prev, [u.username]: {
-              ...(prev[u.username]||{}), [jornadaKey]: {team:"Sin pick",failed:true,result:"nopick"}
-            }}));
-            sinPick++;
-          }
+    for (const u of survivorUsers) {
+      const userPicks = survivorPicks[u.username] || {};
+      const hasPick = Object.keys(userPicks).some(d => getJornadaKey(d) === jornadaKey);
+      if (!hasPick) {
+        const {error} = await sb.from("survivor_picks").insert({
+          username: u.username, date: jornadaKey, team: "Sin pick",
+          failed: true, result: "nopick", match_id: jornadaKey
+        });
+        if (!error) {
+          setSurvivorPicks(prev => ({...prev, [u.username]: {
+            ...(prev[u.username]||{}), [jornadaKey]: {team:"Sin pick",failed:true,result:"nopick"}
+          }}));
+          sinPick++;
         }
       }
     }
-    alert(sinPick > 0 ? "✅ " + sinPick + " jugadores marcados sin pick en: " + pastJornadas.join(", ") : "✅ Todos enviaron pick en jornadas: " + pastJornadas.join(", "));
+    alert(sinPick > 0 ? "✅ " + sinPick + " jugadores marcados sin pick en jornada " + jornadaKey : "✅ Todos enviaron pick en la jornada " + jornadaKey);
   }
 
   // advanceTestDate eliminado
@@ -2932,14 +2948,27 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
         </div>
       )}
 
-      {/* All survivors status table */}
+      {/* All survivors status table — filtrable por jornada */}
       <div style={{marginBottom:20}}>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>
-          👥 Estado Survivor ({survivors.length} vivos / {survivorUsers.length})
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:10}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2}}>
+            👥 Estado Survivor ({survivors.length} vivos / {survivorUsers.length})
+          </div>
+          {isAdmin && (
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Ver jornada:</span>
+              <select value={viewJornada} onChange={e=>setViewJornada(e.target.value)}
+                style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E"}}>
+                <option value="">-- Jornada actual ({fmtD(today)}) --</option>
+                {[...new Set(groupDates.map(d=>getJornadaKeyEarly(d)))].map(jk=>(
+                  <option key={jk} value={jk}>Jornada {fmtD(jk)}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {survivorUsers.sort((a,b) => {
-            // Sort: alive first, then by lives lost
             const aLives = 2 - getLivesLost(a.username);
             const bLives = 2 - getLivesLost(b.username);
             return bLives - aLives;
@@ -2947,14 +2976,14 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             const picks = survivorPicks[u.username] || {};
             const livesLost = getLivesLost(u.username);
             const alive = livesLost < 2;
-            // Buscar pick de la jornada actual en cualquier key de fecha de la jornada
-            const todayPick = picks[todayJornadaKey]
-              || jornadaMatchDates.map(d=>picks[d]).find(Boolean)
-              || Object.entries(picks)
-                  .filter(([d,p]) => !p.result && (getJornadaKeyEarly(d)===todayJornadaKey || jornadaMatchDates.includes(d)))
-                  .map(([,p])=>p)[0]
+            // Jornada a mostrar: la seleccionada por admin, o la jornada actual (todayJornadaKey)
+            const jornadaToShow = viewJornada || todayJornadaKey;
+            const datesOfJornada = groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaToShow);
+            const shownPick = picks[jornadaToShow]
+              || datesOfJornada.map(d=>picks[d]).find(Boolean)
               || null;
             const usedTeams = Object.values(picks).map(p=>p.team).filter(Boolean);
+            const labelSuffix = viewJornada ? `· jornada ${fmtD(viewJornada)}` : "hoy";
             return (
               <div key={u.username} style={{
                 display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
@@ -2969,9 +2998,13 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 <div style={{flex:1}}>
                   <div style={{fontWeight:600,fontSize:15}}>{u.apodo||u.name}</div>
                   <div style={{fontSize:14,color:"#6B7A99",marginTop:2}}>
-                    {todayPick
-                      ? <span><FlagImg team={todayPick.team} size={14}/> {todayPick.team} hoy</span>
-                      : <span style={{color:"#C41E3A"}}>Sin pick hoy</span>}
+                    {shownPick
+                      ? <span><FlagImg team={shownPick.team} size={14}/> {shownPick.team} {labelSuffix}
+                          {shownPick.result==="win" && <span style={{marginLeft:4,color:"var(--green)"}}>✅</span>}
+                          {shownPick.result==="draw" && <span style={{marginLeft:4,color:"var(--accent)"}}>➖</span>}
+                          {shownPick.failed && <span style={{marginLeft:4,color:"var(--red)"}}>💀</span>}
+                        </span>
+                      : <span style={{color:"#C41E3A"}}>Sin pick {labelSuffix}</span>}
                     {usedTeams.length > 0 && <span style={{marginLeft:8}}>· Usados: {usedTeams.length} equipos</span>}
                   </div>
                 </div>
@@ -3001,12 +3034,14 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           <div style={{marginBottom:12,fontSize:14,color:"#6B7A99"}}>
             ⚠️ Día nulo: si TODOS los partidos de una jornada empatan, nadie pierde vida.
           </div>
-          <button onClick={checkMissingPicks} style={{marginBottom:14,padding:"8px 16px",borderRadius:8,
+          <button onClick={()=>checkMissingPicks(viewJornada || todayJornadaKey)} style={{marginBottom:14,padding:"8px 16px",borderRadius:8,
             border:"2px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
             cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
-            🔍 Verificar picks faltantes (quitar vida automática)
+            🔍 Verificar picks faltantes de jornada {fmtD(viewJornada || todayJornadaKey)} (quitar vida automática)
           </button>
           {groupDates.filter(date => {
+            // Si hay jornada seleccionada, mostrar solo esa jornada
+            if (viewJornada && getJornadaKeyEarly(date) !== viewJornada) return false;
             return survivorUsers.some(u => survivorPicks[u.username]?.[date]);
           }).map(date => (
             <div key={date} style={{marginBottom:14,background:"#F8F9FC",borderRadius:12,padding:"14px 16px",border:"1px solid var(--border)"}}>
