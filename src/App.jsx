@@ -3009,6 +3009,23 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                       : <span style={{color:"#C41E3A"}}>Sin pick {labelSuffix}</span>}
                     {usedTeams.length > 0 && <span style={{marginLeft:8}}>· Usados: {usedTeams.length} equipos</span>}
                   </div>
+                  {Object.keys(picks).length > 0 && (
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
+                      {Object.entries(picks).sort(([a],[b])=>a>b?1:-1).map(([d,p]) => (
+                        <span key={d} style={{
+                          fontSize:12,padding:"2px 8px",borderRadius:6,fontWeight:600,
+                          background: p.failed?"rgba(232,64,64,0.12)":p.result==="win"?"rgba(0,168,107,0.12)":p.result==="draw"?"rgba(27,79,158,0.1)":"rgba(107,122,153,0.1)",
+                          border:`1px solid ${p.failed?"var(--red)":p.result==="win"?"var(--green)":p.result==="draw"?"#1B4F9E":"var(--border)"}`,
+                          color: p.failed?"var(--red)":p.result==="win"?"var(--green)":"#1A1A2E"
+                        }}>
+                          {fmtD(d)}: {p.team==="Sin pick" ? "Sin pick" : <><FlagImg team={p.team} size={12}/> {p.team}</>}
+                          {p.result==="win" && " ✅"}
+                          {p.result==="draw" && !p.failed && " ➖"}
+                          {p.failed && " 💀"}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div style={{display:"flex",gap:3}}>
                   {[0,1].map(i=><span key={i} style={{fontSize:20}}>{i<(2-livesLost)?"❤️":"🖤"}</span>)}
