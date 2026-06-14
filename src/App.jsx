@@ -2689,8 +2689,12 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   async function markResult(username, date, result) {
     const pick = survivorPicks[username]?.[date];
     if (!pick) return;
-    const isExcluded = EXCLUDED_SURVIVOR.includes(date);
-    const failed = result !== "win" && !isExcluded;
+    // Reglas simples:
+    // "win"  -> no pierde vida
+    // "draw" -> SÍ pierde vida (cuenta como derrota)
+    // "loss" -> SÍ pierde vida
+    // "nulo" -> día nulo manual, NO pierde vida (admin lo marca cuando TODOS empataron)
+    const failed = (result === "draw" || result === "loss");
     setSurvivorPicks(prev => ({
       ...prev,
       [username]: {
@@ -2837,15 +2841,15 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 {Object.entries(myPicks).sort(([a],[b])=>a>b?1:-1).map(([date, pick]) => (
                   <div key={date} style={{
                     padding:"6px 10px",borderRadius:8,fontSize:15,fontWeight:600,
-                    background: date==="2026-06-11"?"rgba(59,130,246,0.15)":pick.failed?"rgba(232,64,64,0.15)":pick.result==="win"?"rgba(0,168,107,0.15)":"var(--dark)",
-                    border:`1px solid ${date==="2026-06-11"?"var(--accent)":pick.failed?"var(--red)":pick.result==="win"?"var(--green)":"var(--border)"}`
+                    background: pick.result==="nulo"?"rgba(107,122,153,0.15)":pick.failed?"rgba(232,64,64,0.15)":pick.result==="win"?"rgba(0,168,107,0.15)":"var(--dark)",
+                    border:`1px solid ${pick.result==="nulo"?"#6B7A99":pick.failed?"var(--red)":pick.result==="win"?"var(--green)":"var(--border)"}`
                   }}>
                     <FlagImg team={pick.team} size={15}/> {pick.team}
                     <span style={{marginLeft:6,fontSize:12,color:"#6B7A99"}}>{fmtD(date)}</span>
-                    {date==="2026-06-11" && <span style={{marginLeft:4,fontSize:12,color:"#1B4F9E"}}>Día 1</span>}
-                    {pick.failed && <span style={{marginLeft:4}}>💀</span>}
                     {pick.result==="win" && <span style={{marginLeft:4}}>✅</span>}
-                    {pick.result==="draw" && !pick.failed && <span style={{marginLeft:4,fontSize:12,color:"#1B4F9E"}}>➖ día nulo</span>}
+                    {pick.result==="draw" && <span style={{marginLeft:4}}>💀 empató</span>}
+                    {pick.result==="loss" && <span style={{marginLeft:4}}>💀</span>}
+                    {pick.result==="nulo" && <span style={{marginLeft:4,fontSize:12,color:"#6B7A99"}}>🟦 día nulo</span>}
                   </div>
                 ))}
               </div>
@@ -2876,8 +2880,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     <FlagImg team={sentPick.team} size={20}/>
                     <span style={{fontWeight:700,fontSize:16}}>{sentPick.team}</span>
                     {sentPick.result && (
-                      <span style={{fontSize:15,color:sentPick.result==="win"?"var(--green)":sentPick.failed?"var(--red)":"var(--accent)"}}>
-                        {sentPick.result==="win"?"✅ Ganó":sentPick.failed?"💀 Falló":"➖ Empate"}
+                      <span style={{fontSize:15,color:sentPick.result==="win"?"var(--green)":sentPick.result==="nulo"?"#6B7A99":"var(--red)"}}>
+                        {sentPick.result==="win"?"✅ Ganó":sentPick.result==="nulo"?"🟦 Día nulo":sentPick.result==="draw"?"💀 Empató":"💀 Perdió"}
                       </span>
                     )}
                     {!sentPick.result && (
@@ -3003,7 +3007,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     {shownPick
                       ? <span><FlagImg team={shownPick.team} size={14}/> {shownPick.team} {labelSuffix}
                           {shownPick.result==="win" && <span style={{marginLeft:4,color:"var(--green)"}}>✅</span>}
-                          {shownPick.result==="draw" && <span style={{marginLeft:4,color:"var(--accent)"}}>➖</span>}
+                          {shownPick.result==="nulo" && <span style={{marginLeft:4,color:"#6B7A99"}}>🟦</span>}
                           {shownPick.failed && <span style={{marginLeft:4,color:"var(--red)"}}>💀</span>}
                         </span>
                       : <span style={{color:"#C41E3A"}}>Sin pick {labelSuffix}</span>}
@@ -3014,13 +3018,13 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                       {Object.entries(picks).sort(([a],[b])=>a>b?1:-1).map(([d,p]) => (
                         <span key={d} style={{
                           fontSize:12,padding:"2px 8px",borderRadius:6,fontWeight:600,
-                          background: p.failed?"rgba(232,64,64,0.12)":p.result==="win"?"rgba(0,168,107,0.12)":p.result==="draw"?"rgba(27,79,158,0.1)":"rgba(107,122,153,0.1)",
-                          border:`1px solid ${p.failed?"var(--red)":p.result==="win"?"var(--green)":p.result==="draw"?"#1B4F9E":"var(--border)"}`,
+                          background: p.result==="nulo"?"rgba(107,122,153,0.1)":p.failed?"rgba(232,64,64,0.12)":p.result==="win"?"rgba(0,168,107,0.12)":"rgba(107,122,153,0.1)",
+                          border:`1px solid ${p.result==="nulo"?"#6B7A99":p.failed?"var(--red)":p.result==="win"?"var(--green)":"var(--border)"}`,
                           color: p.failed?"var(--red)":p.result==="win"?"var(--green)":"#1A1A2E"
                         }}>
                           {fmtD(d)}: {p.team==="Sin pick" ? "Sin pick" : <><FlagImg team={p.team} size={12}/> {p.team}</>}
                           {p.result==="win" && " ✅"}
-                          {p.result==="draw" && !p.failed && " ➖"}
+                          {p.result==="nulo" && " 🟦"}
                           {p.failed && " 💀"}
                         </span>
                       ))}
@@ -3075,11 +3079,12 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     <span style={{fontSize:15,color:"#6B7A99",display:"flex",alignItems:"center",gap:4}}>
                       <FlagImg team={pick.team} size={16}/> {pick.team}
                     </span>
-                    <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+                    <div style={{display:"flex",gap:6,marginLeft:"auto",flexWrap:"wrap"}}>
                       {[
                         {r:"win", label:"✅ Ganó", color:"#2D8A3E"},
                         {r:"draw", label:"➖ Empató", color:"#1B4F9E"},
                         {r:"loss", label:"❌ Perdió", color:"#C41E3A"},
+                        {r:"nulo", label:"🟦 Día nulo", color:"#6B7A99"},
                       ].map(({r,label,color}) => (
                         <button key={r} onClick={()=>markResult(u.username, date, r)} style={{
                           padding:"5px 10px",borderRadius:6,border:`1px solid ${color}`,
@@ -3091,6 +3096,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     </div>
                     {pick.failed && <span style={{fontSize:14,color:"#C41E3A",fontWeight:700}}>💀 -1 vida</span>}
                     {pick.result==="win" && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✅ +0 vidas</span>}
+                    {pick.result==="nulo" && <span style={{fontSize:14,color:"#6B7A99",fontWeight:700}}>🟦 Día nulo · +0 vidas</span>}
                   </div>
                 );
               })}
