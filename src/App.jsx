@@ -215,11 +215,14 @@ const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); r
 
 // Is match open for predictions? Closes at 10PM Colombia the day before the match.
 // Exception: matches on 2026-06-11 and 2026-06-12 close on 2026-06-11 at 11PM Colombia.
-// blockedDates: array de fechas bloqueadas manualmente por el admin
-function isMatchOpen(match, blockedDates=[]) {
+// openedDates: fechas que el admin forzó a ABIERTO manualmente (anula el cierre automático)
+// blockedDates: fechas que el admin forzó a CERRADO manualmente (anula todo lo demás)
+function isMatchOpen(match, blockedDates=[], openedDates=[]) {
   if (!match.date) return true;
-  // Bloqueo manual por fecha
+  // Bloqueo manual tiene prioridad absoluta
   if (blockedDates.includes(match.date)) return false;
+  // Apertura manual anula el cierre automático
+  if (openedDates.includes(match.date)) return true;
   // Excepción jornada 1: partidos del 11 y 12 jun cierran el 11 jun a las 11PM
   if (match.date === "2026-06-11" || match.date === "2026-06-12") {
     return new Date() < new Date("2026-06-11T23:00:00-05:00");
@@ -397,7 +400,8 @@ export default function App() {
   }
   const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
   // Controles de bloqueo manual (admin)
-  const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 bloqueadas
+  const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 forzadas CERRADAS
+  const [openedDates, setOpenedDates] = useState([]); // fechas de Fase1 forzadas ABIERTAS (anula cierre automático)
   const [clasifBlocked, setClasifBlocked] = useState(false); // Clasificación bloqueada
   const [fase3Blocked, setFase3Blocked] = useState(false); // Fase3 bloqueada
   const [survivorBlockedDates, setSurvivorBlockedDates] = useState([]); // Jornadas Survivor bloqueadas (array de jornadaKeys)
@@ -633,10 +637,11 @@ export default function App() {
 
         // Cargar controles de bloqueo manual
         try {
-          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
+          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
           if (cfgAll) {
             cfgAll.forEach(c => {
               if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
+              if (c.key==="openedDates") setOpenedDates(c.value ? c.value.split(",").filter(Boolean) : []);
               if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
               if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
               if (c.key==="survivorBlockedDates") setSurvivorBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
@@ -660,10 +665,11 @@ export default function App() {
     // Polling cada 30s para que jugadores vean cambios de bloqueo del admin
     const pollInterval = setInterval(async () => {
       try {
-        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
+        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
         if (cfgPoll) {
           cfgPoll.forEach(c => {
             if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
+            if (c.key==="openedDates") setOpenedDates(c.value ? c.value.split(",").filter(Boolean) : []);
             if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
             if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
             if (c.key==="survivorBlockedDates") setSurvivorBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
@@ -933,11 +939,11 @@ export default function App() {
         ))}
       </nav>
       <div className="content">
-        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
-        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
+        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
+        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
         {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} survivorBlockedDates={survivorBlockedDates} setSurvivorBlockedDates={setSurvivorBlockedDates} />}
-        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} clasifBlocked={clasifBlocked} />}
-        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
+        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} openedDates={openedDates} clasifBlocked={clasifBlocked} />}
+        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
         {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
         {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} />}
@@ -945,7 +951,7 @@ export default function App() {
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} openedDates={openedDates} setOpenedDates={setOpenedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} />}
       </div>
     </div>
   );
@@ -984,7 +990,7 @@ function LoginScreen({login}) {
 // ============================================================
 // HOY TAB — only today's matches
 // ============================================================
-function HoyTab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
+function HoyTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[]}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   // Antes del inicio del Mundial: anclar al 11 jun para que la gente pueda enviar pronósticos
   const MUNDIAL_START = "2026-06-11";
@@ -1006,7 +1012,7 @@ function HoyTab({currentUser, predictions, results, savePrediction, blockedDates
         </div>
       ) : (
         <MatchList matches={todayMatches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
       )}
     </div>
   );
@@ -1015,7 +1021,7 @@ function HoyTab({currentUser, predictions, results, savePrediction, blockedDates
 // ============================================================
 // FASE 1 TAB
 // ============================================================
-function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick, blockedDates=[], clasifBlocked=false}) {
+function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick, blockedDates=[], openedDates=[], clasifBlocked=false}) {
   const [section, setSection] = useState("partidos");
   const matches = GROUP_MATCHES; // Todos los partidos visibles siempre
 
@@ -1028,7 +1034,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
       </div>
       {section==="partidos" && (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
       )}
       {section==="grupos" && (
         <GroupPicksSection groupPicks={groupPicks} groupResults={groupResults} saveGroupPick={saveGroupPick} clasifBlocked={clasifBlocked} />
@@ -1040,7 +1046,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
 // ============================================================
 // FASE 2 TAB
 // ============================================================
-function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
+function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[]}) {
   const [sub, setSub] = useState("dieciseisavos");
   const subPhases = [
     {key:"dieciseisavos", label:"Dieciseisavos"},
@@ -1066,7 +1072,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDat
             <div>Esta fase aún no ha comenzado</div>
           </div>
         : <MatchList matches={matches} predictions={predictions} results={results}
-            savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
+            savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
       }
     </div>
   );
@@ -1132,7 +1138,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick, fase3Bl
 // ============================================================
 // MATCH LIST — shared component
 // ============================================================
-function MatchList({matches, predictions, results, savePrediction, allPredictions, showScores, blockedDates=[]}) {
+function MatchList({matches, predictions, results, savePrediction, allPredictions, showScores, blockedDates=[], openedDates=[]}) {
   const [local, setLocal] = useState({});
   const [saved, setSaved] = useState({});
   const [confirming, setConfirming] = useState(null);
@@ -1181,7 +1187,7 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
       {matches.map(match=>{
         const pred = getPred(match.id);
         const result = results[match.id];
-        const open = isMatchOpen(match, blockedDates);
+        const open = isMatchOpen(match, blockedDates, openedDates);
         const pred_saved = predictions[match.id]; const alreadySaved = !!(pred_saved && pred_saved.homeGoals != null && pred_saved.homeGoals !== '' && pred_saved.awayGoals != null && pred_saved.awayGoals !== '');
         const locked = !open || alreadySaved || !!result;
         const hasPred = pred.homeGoals!=null && pred.homeGoals!=="" && pred.awayGoals!=null && pred.awayGoals!=="";
@@ -1901,7 +1907,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, openedDates, setOpenedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2313,24 +2319,39 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           <div style={{background:"rgba(196,30,58,0.06)",border:"1px solid rgba(196,30,58,0.3)",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#C41E3A",letterSpacing:1,marginBottom:10}}>🔒 Control de bloqueo de envíos</div>
 
-            {/* Fase 1 por fecha */}
+            {/* Fase 1 por fecha — 3 estados: Auto / Forzar Abierto / Forzar Cerrado */}
             <div style={{marginBottom:10}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:6}}>⚽ Fase 1 — Bloquear fecha específica:</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:6}}>⚽ Fase 1 — Estado de envío por fecha (clic para cambiar: Auto → Abierto → Cerrado → Auto):</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=>(
-                  <button key={d} onClick={async()=>{
-                    const newBlocked = blockedDates.includes(d)
-                      ? blockedDates.filter(x=>x!==d)
-                      : [...blockedDates, d];
-                    setBlockedDates(newBlocked);
-                    await sb.from("config").upsert({key:"blockedDates",value:newBlocked.join(",")},{onConflict:"key"});
-                  }} style={{padding:"5px 10px",borderRadius:8,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
-                    background:blockedDates.includes(d)?"#C41E3A":"transparent",
-                    borderColor:blockedDates.includes(d)?"#C41E3A":"var(--border)",
-                    color:blockedDates.includes(d)?"#fff":"var(--text)"}}>
-                    {blockedDates.includes(d)?"🔒":"🔓"} {d.slice(5)}
-                  </button>
-                ))}
+                {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=>{
+                  const isBlocked = blockedDates.includes(d);
+                  const isOpened = openedDates.includes(d);
+                  const state = isBlocked ? "closed" : isOpened ? "open" : "auto";
+                  const styles = {
+                    auto:   {bg:"transparent", border:"var(--border)", color:"var(--text)", icon:"⚙️", label:"Auto"},
+                    open:   {bg:"#2D8A3E", border:"#2D8A3E", color:"#fff", icon:"🔓", label:"Abierto"},
+                    closed: {bg:"#C41E3A", border:"#C41E3A", color:"#fff", icon:"🔒", label:"Cerrado"},
+                  };
+                  const s = styles[state];
+                  return (
+                    <button key={d} onClick={async()=>{
+                      let newBlocked = blockedDates.filter(x=>x!==d);
+                      let newOpened = openedDates.filter(x=>x!==d);
+                      if (state === "auto") {
+                        newOpened = [...newOpened, d]; // auto -> abierto
+                      } else if (state === "open") {
+                        newBlocked = [...newBlocked, d]; // abierto -> cerrado
+                      } // cerrado -> auto (ambos arrays ya quedan sin la fecha)
+                      setBlockedDates(newBlocked);
+                      setOpenedDates(newOpened);
+                      await sb.from("config").upsert({key:"blockedDates",value:newBlocked.join(",")},{onConflict:"key"});
+                      await sb.from("config").upsert({key:"openedDates",value:newOpened.join(",")},{onConflict:"key"});
+                    }} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${s.border}`,fontSize:12,fontWeight:700,cursor:"pointer",
+                      background:s.bg, color:s.color}}>
+                      {s.icon} {d.slice(5)} · {s.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -2502,7 +2523,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 // ============================================================
 // MAÑANA TAB
 // ============================================================
-function MananaTab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
+function MananaTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[]}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
   // Antes del inicio: mostrar el 12 jun (jornada 1 segundo día)
@@ -2523,7 +2544,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, blockedDa
         </div>
       ) : (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
       )}
     </div>
   );
