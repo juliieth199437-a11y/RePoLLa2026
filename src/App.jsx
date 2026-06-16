@@ -3065,8 +3065,6 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
               );
             })}</>
           )}
-            );
-          })()}
           {!myAlive && (
             <div style={{fontSize:16,color:"#C41E3A",fontWeight:700,textAlign:"center",padding:"10px 0"}}>
               💀 Has sido eliminado del Survivor. ¡Mejor suerte la próxima!
