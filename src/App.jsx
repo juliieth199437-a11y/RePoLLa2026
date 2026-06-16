@@ -3035,14 +3035,16 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                       {!sentPick.result && (
                         <button onClick={async()=>{
                           // Re-sincronizar pick a Supabase por si no se guardó
-                          await sb.from("survivor_picks").upsert({
+                          await sb.from("survivor_picks").delete()
+                            .eq("username",currentUser.username).eq("date",jornadaKey);
+                          await sb.from("survivor_picks").insert({
                             username:currentUser.username,
                             date:jornadaKey,
                             team:sentPick.team,
                             failed:false,
                             result:null,
                             match_id:jornadaKey
-                          },{onConflict:"username,date"});
+                          });
                           alert("✅ Pick re-sincronizado con éxito: " + sentPick.team);
                         }} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #1B4F9E",
                           background:"rgba(27,79,158,0.1)",color:"#1B4F9E",
@@ -3072,7 +3074,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                         setSaved(false);
                         const pickDate = jornadaKey;
                         setSurvivorPicks(prev=>({...prev,[currentUser.username]:{...(prev[currentUser.username]||{}),[pickDate]:{team:selectedTeam,failed:false,result:null}}}));
-                        await sb.from("survivor_picks").upsert({username:currentUser.username,date:pickDate,team:selectedTeam,failed:false,result:null,match_id:pickDate},{onConflict:"username,date"});
+                        await sb.from("survivor_picks").delete().eq("username",currentUser.username).eq("date",pickDate);
+                        await sb.from("survivor_picks").insert({username:currentUser.username,date:pickDate,team:selectedTeam,failed:false,result:null,match_id:pickDate});
                         setSaved(true);
                         setSelectedTeam("");
                         setTimeout(()=>setSaved(false),2500);
@@ -3229,10 +3232,13 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     {teamsForJornada.map(t=><option key={t} value={t}>{t}</option>)}
                   </select>
                   <button disabled={!manualUser||!manualTeam||!jornadaParaManual} onClick={async()=>{
-                    const {error} = await sb.from("survivor_picks").upsert({
-                      username:manualUser, date:jornadaParaManual, team:manualTeam,
-                      failed:false, result:null, match_id:jornadaParaManual
-                    },{onConflict:"username,date"});
+                    // Borrar pick previo si existe, luego insertar
+                  await sb.from("survivor_picks").delete()
+                    .eq("username",manualUser).eq("date",jornadaParaManual);
+                  const {error} = await sb.from("survivor_picks").insert({
+                    username:manualUser, date:jornadaParaManual, team:manualTeam,
+                    failed:false, result:null, match_id:jornadaParaManual
+                  });
                     if (!error) {
                       setSurvivorPicks(prev=>({...prev,[manualUser]:{...(prev[manualUser]||{}),[jornadaParaManual]:{team:manualTeam,failed:false,result:null}}}));
                       setManualMsg(`✅ Pick de ${manualTeam} guardado para ${manualUser}`);
@@ -3982,3 +3988,5 @@ function ReglasTab() {
     </div>
   );
 }
+
+  
