@@ -3253,11 +3253,41 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             );
           })()}
 
-          <button onClick={()=>checkMissingPicks(viewJornada || todayJornadaKey)} style={{marginBottom:14,padding:"8px 16px",borderRadius:8,
-            border:"2px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
-            cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
-            🔍 Verificar picks faltantes de jornada {fmtD(viewJornada || todayJornadaKey)} (quitar vida automática)
-          </button>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
+            <button onClick={()=>checkMissingPicks(viewJornada || todayJornadaKey)} style={{padding:"8px 16px",borderRadius:8,
+              border:"2px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
+              cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
+              🔍 Verificar picks faltantes de {fmtD(viewJornada || todayJornadaKey)} (quitar vida)
+            </button>
+            <button onClick={async()=>{
+              const jornadaRevert = viewJornada || todayJornadaKey;
+              if (!window.confirm(`¿Revertir eliminaciones automáticas de ${jornadaRevert}? Esto borrará todos los registros "Sin pick" de esa jornada y devolverá las vidas.`)) return;
+              const {error} = await sb.from("survivor_picks")
+                .delete()
+                .eq("date", jornadaRevert)
+                .eq("result","nopick");
+              if (!error) {
+                setSurvivorPicks(prev => {
+                  const np = {...prev};
+                  Object.keys(np).forEach(u => {
+                    if (np[u]?.[jornadaRevert]?.result === "nopick") {
+                      const upd = {...np[u]};
+                      delete upd[jornadaRevert];
+                      np[u] = upd;
+                    }
+                  });
+                  return np;
+                });
+                alert("✅ Eliminaciones revertidas para " + jornadaRevert);
+              } else {
+                alert("❌ Error: " + error.message);
+              }
+            }} style={{padding:"8px 16px",borderRadius:8,
+              border:"2px solid #2D8A3E",background:"rgba(45,138,62,0.08)",color:"#2D8A3E",
+              cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
+              ↩️ Revertir eliminaciones de {fmtD(viewJornada || todayJornadaKey)}
+            </button>
+          </div>
           {groupDates.filter(date => {
             // Si hay jornada seleccionada, mostrar solo esa jornada
             if (viewJornada && getJornadaKeyEarly(date) !== viewJornada) return false;
