@@ -208,6 +208,17 @@ const KNOCKOUT_MATCHES = [
 
 const ALL_MATCHES = [...GROUP_MATCHES, ...KNOCKOUT_MATCHES];
 
+// Lista oficial de los 48 equipos del Mundial 2026 (para selectores de Fase 2)
+const ALL_TEAMS = [...new Set(GROUP_MATCHES.flatMap(m => [m.home, m.away]))].sort();
+
+// Aplica el nombre real de equipo a un partido de Dieciseisavos si ya fue asignado por el admin.
+// fase2Overrides: { R32_1: {home:"México", away:"Brasil"}, ... }
+function applyFase2Override(match, fase2Overrides={}) {
+  const ov = fase2Overrides[match.id];
+  if (!ov) return match;
+  return {...match, home: ov.home, away: ov.away, label: `${ov.home} vs ${ov.away}`};
+}
+
 // Today's date helper
 
 const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); };
@@ -404,7 +415,11 @@ export default function App() {
   const [openedDates, setOpenedDates] = useState([]); // fechas de Fase1 forzadas ABIERTAS (anula cierre automático)
   const [clasifBlocked, setClasifBlocked] = useState(false); // Clasificación bloqueada
   const [fase3Blocked, setFase3Blocked] = useState(false); // Fase3 bloqueada
-  const [survivorBlockedDates, setSurvivorBlockedDates] = useState([]); // Jornadas Survivor bloqueadas (array de jornadaKeys)
+  const [survivorBlockedDates, setSurvivorBlockedDates] = useState([]);
+  const [survivorActiveJornadas, setSurvivorActiveJornadas] = useState([]); // Jornadas Survivor habilitadas explícitamente // Jornadas Survivor bloqueadas (array de jornadaKeys)
+  // Equipos reales asignados a cada partido de Dieciseisavos (Fase 2), una vez se conocen los clasificados
+  // Formato: { R32_1: {home:"México", away:"Brasil"}, ... }
+  const [fase2Overrides, setFase2Overrides] = useState({});
 
   // testMode eliminado — modo producción real
 
@@ -637,7 +652,7 @@ export default function App() {
 
         // Cargar controles de bloqueo manual
         try {
-          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
+          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas"]);
           if (cfgAll) {
             cfgAll.forEach(c => {
               if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
@@ -645,7 +660,22 @@ export default function App() {
               if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
               if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
               if (c.key==="survivorBlockedDates") setSurvivorBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
+              if (c.key==="survivorActiveJornadas") setSurvivorActiveJornadas(c.value ? c.value.split(",").filter(Boolean) : []);
             });
+          }
+        } catch(e) {}
+
+        // Cargar overrides de Fase 2 (equipos reales de Dieciseisavos)
+        try {
+          const { data: f2cfg } = await sb.from("config").select("*").like("key","fase2_%");
+          if (f2cfg) {
+            const overrides = {};
+            f2cfg.forEach(c => {
+              const matchId = c.key.replace("fase2_","");
+              const [home, away] = (c.value || "").split("|");
+              if (home && away) overrides[matchId] = {home, away};
+            });
+            setFase2Overrides(overrides);
           }
         } catch(e) {}
 
@@ -665,7 +695,7 @@ export default function App() {
     // Polling cada 30s para que jugadores vean cambios de bloqueo del admin
     const pollInterval = setInterval(async () => {
       try {
-        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
+        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas"]);
         if (cfgPoll) {
           cfgPoll.forEach(c => {
             if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
@@ -674,6 +704,19 @@ export default function App() {
             if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
             if (c.key==="survivorBlockedDates") setSurvivorBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
           });
+        }
+      } catch(e) {}
+      // Polling de overrides Fase 2
+      try {
+        const { data: f2poll } = await sb.from("config").select("*").like("key","fase2_%");
+        if (f2poll) {
+          const overrides = {};
+          f2poll.forEach(c => {
+            const matchId = c.key.replace("fase2_","");
+            const [home, away] = (c.value || "").split("|");
+            if (home && away) overrides[matchId] = {home, away};
+          });
+          setFase2Overrides(overrides);
         }
       } catch(e) {}
     }, 30000);
@@ -941,17 +984,17 @@ export default function App() {
       <div className="content">
         {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
         {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
-        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} survivorBlockedDates={survivorBlockedDates} setSurvivorBlockedDates={setSurvivorBlockedDates} />}
+        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} survivorBlockedDates={survivorBlockedDates} setSurvivorBlockedDates={setSurvivorBlockedDates} survivorActiveJornadas={survivorActiveJornadas} setSurvivorActiveJornadas={setSurvivorActiveJornadas} />}
         {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} openedDates={openedDates} clasifBlocked={clasifBlocked} />}
-        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
+        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
         {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
-        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} />}
+        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} fase2Overrides={fase2Overrides} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} openedDates={openedDates} setOpenedDates={setOpenedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} openedDates={openedDates} setOpenedDates={setOpenedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} />}
       </div>
     </div>
   );
@@ -1046,7 +1089,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
 // ============================================================
 // FASE 2 TAB
 // ============================================================
-function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[]}) {
+function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[], fase2Overrides={}}) {
   const [sub, setSub] = useState("dieciseisavos");
   const subPhases = [
     {key:"dieciseisavos", label:"Dieciseisavos"},
@@ -1056,7 +1099,8 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDat
     {key:"tercer", label:"3er y 4to Puesto"},
     {key:"final", label:"Gran Final"},
   ];
-  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub); // Todos visibles siempre
+  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub)
+    .map(m => applyFase2Override(m, fase2Overrides)); // Todos visibles siempre
 
   return (
     <div>
@@ -1522,7 +1566,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
 // ============================================================
 // VER PRONÓSTICOS TAB — partido-centric, solo visible tras cierre
 // ============================================================
-function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, blockedDates=[]}) {
+function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, blockedDates=[], fase2Overrides={}}) {
   const [freshPreds, setFreshPreds] = useState({});
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
@@ -1611,6 +1655,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
   }
   const matches = ALL_MATCHES.filter(m=>m.phase===phase)
     .filter(m => phase!=="grupos" || !fechaFiltroVer || m.date===fechaFiltroVer)
+    .map(m => applyFase2Override(m, fase2Overrides))
     .sort((a,b) => {
       // Ordenar cronológicamente por fecha y hora
       const da = a.date + "T" + (a.time||"00:00");
@@ -1907,7 +1952,7 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, openedDates, setOpenedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, openedDates, setOpenedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked, fase2Overrides, setFase2Overrides}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -1916,6 +1961,8 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
   const [localFinal, setLocalFinal]=useState(finalResults||{});
   const [deletingUser, setDeletingUser]=useState(null);
   const [deleteMsg, setDeleteMsg]=useState("");
+  const [fase2Local, setFase2Local]=useState({});
+  const [fase2SavedMsg, setFase2SavedMsg]=useState({});
 
   async function borrarPronosticos(username, tipo) {
     try {
@@ -2130,6 +2177,57 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
                 <button className="btn-sm" style={{width:"100%",background:saved?"var(--green)":"var(--accent)"}} onClick={()=>saveGR(g)}>
                   {saved?"✅ Guardado":"💾 Guardar"}
                 </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Armar Fase 2 — asignar equipos reales a Dieciseisavos */}
+      <div style={{marginBottom:24,background:"rgba(27,79,158,0.06)",border:"1px solid rgba(27,79,158,0.3)",borderRadius:12,padding:"14px 16px"}}>
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🏆 Armar Fase 2 — Dieciseisavos</div>
+        <div style={{fontSize:14,color:"#6B7A99",marginBottom:12}}>
+          Cuando ya se conozcan los equipos clasificados (1° y 2° de cada grupo + los 8 mejores terceros),
+          selecciona en cada partido el <strong>Equipo Local</strong> y el <strong>Equipo Visitante</strong> y presiona Guardar.
+          Apenas guardes, los jugadores verán el cruce real en vez de "{`{`}1A vs 2B{`}`}".
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {KNOCKOUT_MATCHES.filter(m=>m.phase==="dieciseisavos").map(match => {
+            const current = fase2Overrides[match.id] || {};
+            const localKey = `f2_${match.id}`;
+            const localVal = fase2Local[localKey] || {home: current.home||"", away: current.away||""};
+            return (
+              <div key={match.id} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",background:"#F8F9FC",borderRadius:10,padding:"10px 12px"}}>
+                <div style={{minWidth:90}}>
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,color:"#1B4F9E"}}>{match.id}</div>
+                  <div style={{fontSize:11,color:"#6B7A99"}}>{fmtDate(match.date)} · {match.time}</div>
+                  <div style={{fontSize:11,color:"#6B7A99"}}>{match.label}</div>
+                </div>
+                <select value={localVal.home} onChange={e=>setFase2Local(p=>({...p,[localKey]:{...localVal,home:e.target.value}}))}
+                  style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
+                  <option value="">-- Equipo local --</option>
+                  {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+                <span style={{fontWeight:700,color:"#6B7A99"}}>vs</span>
+                <select value={localVal.away} onChange={e=>setFase2Local(p=>({...p,[localKey]:{...localVal,away:e.target.value}}))}
+                  style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
+                  <option value="">-- Equipo visitante --</option>
+                  {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+                <button disabled={!localVal.home || !localVal.away} onClick={async()=>{
+                  const value = `${localVal.home}|${localVal.away}`;
+                  await sb.from("config").upsert({key:`fase2_${match.id}`, value}, {onConflict:"key"});
+                  setFase2Overrides(prev => ({...prev, [match.id]: {home: localVal.home, away: localVal.away}}));
+                  setFase2SavedMsg(p=>({...p,[match.id]:true}));
+                  setTimeout(()=>setFase2SavedMsg(p=>({...p,[match.id]:false})),3000);
+                }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #2D8A3E",
+                  background:(localVal.home && localVal.away)?"rgba(45,138,62,0.1)":"#eee",
+                  color:(localVal.home && localVal.away)?"#2D8A3E":"#aaa",
+                  fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:(localVal.home && localVal.away)?"pointer":"default"}}>
+                  💾 Guardar
+                </button>
+                {fase2SavedMsg[match.id] && <span style={{color:"#2D8A3E",fontWeight:700,fontSize:13}}>✅ Guardado</span>}
+                {current.home && current.away && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ {current.home} vs {current.away}</span>}
               </div>
             );
           })}
@@ -2553,7 +2651,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, blockedDa
 // ============================================================
 // SURVIVOR TAB
 // ============================================================
-function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate, survivorBlockedDates, setSurvivorBlockedDates}) {
+function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate, survivorBlockedDates, setSurvivorBlockedDates, survivorActiveJornadas, setSurvivorActiveJornadas}) {
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && !u.isDemo && u.survivorEnabled === true);
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
@@ -2581,7 +2679,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   // Puede enviar pick si el admin habilitó una fecha y aún no cerró (11PM del survivorMaxDate)
   const survivorClose = survivorMaxDate ? new Date(survivorMaxDate + "T23:00:00-05:00") : null;
   const survivorClosed = survivorClose ? new Date() >= survivorClose : true;
-  const canPickToday = !survivorBlockedDates.includes(today) && (survivorMaxDate ? !survivorClosed : false);
+  // canPickToday: la jornada actual está habilitada por el admin (en lista activa o por survivorMaxDate) y no bloqueada
+  const canPickToday = !survivorBlockedDates.includes(today) && (
+    survivorActiveJornadas.includes(today) ||
+    (survivorMaxDate ? !survivorClosed : false)
+  );
 
   // Polling cada 30s para que jugadores vean cambios del admin en tiempo real
   useEffect(() => {
@@ -2757,42 +2859,59 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             <>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:8}}>
               <button onClick={() => {
-                const rows = [["Usuario","Nombre","Jornada","Equipo","Resultado","Falló"]];
+                // Exportar por jornada seleccionada (o jornada actual si no hay selección)
+                const jornadaExport = viewJornada || today;
+                const datesOfJornada = groupDates.filter(d => getJornadaKeyEarly(d) === jornadaExport);
+                const rows = [["Usuario","Nombre","Jornada","¿Envió?","Equipo","Resultado","Falló","Vidas perdidas","Estado"]];
                 survivorUsers.forEach(u => {
                   const picks = survivorPicks[u.username] || {};
-                  if (Object.keys(picks).length === 0) {
-                    rows.push([u.username, u.name, "Sin pick", "", "", ""]);
+                  const livesLost = getLivesLost(u.username);
+                  const alive = livesLost < 2;
+                  // Buscar pick de la jornada exportada
+                  const pick = picks[jornadaExport] || datesOfJornada.map(d=>picks[d]).find(Boolean);
+                  if (pick) {
+                    rows.push([u.username, u.apodo||u.name, jornadaExport, "✅ Enviado",
+                      pick.team||"", pick.result||"pendiente", pick.failed?"Sí":"No",
+                      livesLost, alive?"VIVO":"ELIMINADO"]);
                   } else {
-                    Object.entries(picks).sort(([a],[b])=>a>b?1:-1).forEach(([date, p]) => {
-                      rows.push([u.username, u.name, date, p.team||"", p.result||"pendiente", p.failed?"Sí":"No"]);
-                    });
+                    rows.push([u.username, u.apodo||u.name, jornadaExport, "❌ NO envió",
+                      "", "", "", livesLost, alive?"VIVO":"ELIMINADO"]);
                   }
                 });
                 const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
                 const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(blob);
-                a.download = `Survivor_Picks_${new Date().toISOString().slice(0,10)}.csv`;
+                a.download = `Survivor_Jornada_${jornadaExport}.csv`;
                 a.click();
                 URL.revokeObjectURL(a.href);
               }} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #1B4F9E",background:"rgba(27,79,158,0.08)",color:"#1B4F9E",fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 📥 Exportar picks Survivor
               </button>
-              <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Jornada habilitada hasta:</span>
-              <select
-                value={survivorMaxDate || "off"}
-                onChange={async e => {
-                  const val = e.target.value;
-                  await setSurvivorMaxDate(val);
-                }}
-                style={{padding:"6px 12px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E",cursor:"pointer"}}
-              >
-                <option value="off">🔒 Cerrado (nadie puede enviar)</option>
-                {groupDates.map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              {survivorMaxDate && !survivorBlockedDates.includes(today) && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ Jugadores pueden enviar pick hasta {survivorMaxDate}</span>}
+              <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Jornadas habilitadas:</span>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {[...new Set(groupDates.map(d=>getJornadaKeyEarly(d)))].map(jk => {
+                  const isActive = survivorActiveJornadas.includes(jk);
+                  return (
+                    <button key={jk} onClick={async()=>{
+                      const newActive = isActive
+                        ? survivorActiveJornadas.filter(x=>x!==jk)
+                        : [...survivorActiveJornadas, jk];
+                      setSurvivorActiveJornadas(newActive);
+                      await sb.from("config").upsert({key:"survivorActiveJornadas",value:newActive.join(",")},{onConflict:"key"});
+                      // Mantener survivorMaxDate como la última jornada activa (para compatibilidad)
+                      const lastActive = newActive.sort().slice(-1)[0];
+                      if (lastActive) await setSurvivorMaxDate(lastActive);
+                    }} style={{padding:"5px 10px",borderRadius:8,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
+                      background:isActive?"#2D8A3E":"transparent",
+                      borderColor:isActive?"#2D8A3E":"var(--border)",
+                      color:isActive?"#fff":"var(--text)"}}>
+                      {isActive?"🔓":"🔒"} {fmtD(jk)}
+                    </button>
+                  );
+                })}
+              </div>
+              {survivorActiveJornadas.length > 0 && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ Activas: {survivorActiveJornadas.map(j=>fmtD(j)).join(", ")}</span>}
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:8}}>
               <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>🔒 Bloquear jornada (clic para activar/desactivar):</span>
