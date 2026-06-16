@@ -2657,6 +2657,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
   // Jornada seleccionada en "Ver Survivor de..." (admin)
   const [viewJornada, setViewJornada] = useState("");
+  // Panel ingreso manual de pick
+  const [manualUser, setManualUser] = useState("");
+  const [manualTeam, setManualTeam] = useState("");
+  const [manualPickDate, setManualPickDate] = useState("");
+  const [manualMsg, setManualMsg] = useState("");
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
   // survivorMaxDate = fecha hasta la que el admin habilitó envío (ej: "2026-06-12")
@@ -3015,7 +3020,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
               const availTeams = jornadaTeams.filter(t => !myUsedTeams.includes(t));
 
               if (sentPick) {
-                // Ya envió — mostrar confirmación
+                // Ya envió — mostrar confirmación + botón re-sincronizar si no está en Supabase
                 return (
                   <div key={jornadaKey} style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -3027,6 +3032,24 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                             {sentPick.result==="win"?"✅ Ganó":sentPick.result==="nulo"?"🟦 Día nulo":sentPick.result==="draw"?"💀 Empató":"💀 Perdió"}
                           </span>
                         : <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>}
+                      {!sentPick.result && (
+                        <button onClick={async()=>{
+                          // Re-sincronizar pick a Supabase por si no se guardó
+                          await sb.from("survivor_picks").upsert({
+                            username:currentUser.username,
+                            date:jornadaKey,
+                            team:sentPick.team,
+                            failed:false,
+                            result:null,
+                            match_id:jornadaKey
+                          },{onConflict:"username,date"});
+                          alert("✅ Pick re-sincronizado con éxito: " + sentPick.team);
+                        }} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #1B4F9E",
+                          background:"rgba(27,79,158,0.1)",color:"#1B4F9E",
+                          fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}}>
+                          🔄 Re-sincronizar
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -3176,6 +3199,60 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           <div style={{marginBottom:12,fontSize:14,color:"#6B7A99"}}>
             ⚠️ Día nulo: si TODOS los partidos de una jornada empatan, nadie pierde vida.
           </div>
+
+          {/* Panel ingreso manual de pick */}
+          {(()=>{
+            const jornadaParaManual = manualPickDate || viewJornada || todayJornadaKey;
+            const teamsForJornada = [...new Set(
+              GROUP_MATCHES.filter(m => groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaParaManual).includes(m.date))
+              .flatMap(m=>[m.home,m.away])
+            )].sort();
+            return (
+              <div style={{marginBottom:14,background:"rgba(27,79,158,0.06)",border:"1px solid rgba(27,79,158,0.3)",borderRadius:10,padding:"12px 14px"}}>
+                <div style={{fontWeight:700,fontSize:14,color:"#1B4F9E",marginBottom:8}}>✍️ Ingresar pick manualmente (para picks que no se guardaron en Supabase)</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                  <select value={manualPickDate || viewJornada || todayJornadaKey} onChange={e=>setManualPickDate(e.target.value)}
+                    style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff"}}>
+                    <option value="">-- Jornada --</option>
+                    {[...new Set(groupDates.map(d=>getJornadaKeyEarly(d)))].map(jk=>(
+                      <option key={jk} value={jk}>{fmtD(jk)}</option>
+                    ))}
+                  </select>
+                  <select value={manualUser} onChange={e=>setManualUser(e.target.value)}
+                    style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",minWidth:140}}>
+                    <option value="">-- Jugador --</option>
+                    {survivorUsers.map(u=><option key={u.username} value={u.username}>{u.apodo||u.name}</option>)}
+                  </select>
+                  <select value={manualTeam} onChange={e=>setManualTeam(e.target.value)}
+                    style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",minWidth:140}}>
+                    <option value="">-- Equipo --</option>
+                    {teamsForJornada.map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <button disabled={!manualUser||!manualTeam||!jornadaParaManual} onClick={async()=>{
+                    const {error} = await sb.from("survivor_picks").upsert({
+                      username:manualUser, date:jornadaParaManual, team:manualTeam,
+                      failed:false, result:null, match_id:jornadaParaManual
+                    },{onConflict:"username,date"});
+                    if (!error) {
+                      setSurvivorPicks(prev=>({...prev,[manualUser]:{...(prev[manualUser]||{}),[jornadaParaManual]:{team:manualTeam,failed:false,result:null}}}));
+                      setManualMsg(`✅ Pick de ${manualTeam} guardado para ${manualUser}`);
+                      setManualUser(""); setManualTeam("");
+                    } else {
+                      setManualMsg("❌ Error: "+error.message);
+                    }
+                    setTimeout(()=>setManualMsg(""),4000);
+                  }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #1B4F9E",
+                    background:(manualUser&&manualTeam&&jornadaParaManual)?"rgba(27,79,158,0.1)":"#eee",
+                    color:(manualUser&&manualTeam&&jornadaParaManual)?"#1B4F9E":"#aaa",
+                    fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                    💾 Guardar pick
+                  </button>
+                  {manualMsg && <span style={{fontSize:13,fontWeight:700,color:manualMsg.startsWith("✅")?"#2D8A3E":"#C41E3A"}}>{manualMsg}</span>}
+                </div>
+              </div>
+            );
+          })()}
+
           <button onClick={()=>checkMissingPicks(viewJornada || todayJornadaKey)} style={{marginBottom:14,padding:"8px 16px",borderRadius:8,
             border:"2px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
             cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
