@@ -3032,26 +3032,6 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                             {sentPick.result==="win"?"✅ Ganó":sentPick.result==="nulo"?"🟦 Día nulo":sentPick.result==="draw"?"💀 Empató":"💀 Perdió"}
                           </span>
                         : <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>}
-                      {!sentPick.result && (
-                        <button onClick={async()=>{
-                          // Re-sincronizar pick a Supabase por si no se guardó
-                          await sb.from("survivor_picks").delete()
-                            .eq("username",currentUser.username).eq("date",jornadaKey);
-                          await sb.from("survivor_picks").insert({
-                            username:currentUser.username,
-                            date:jornadaKey,
-                            team:sentPick.team,
-                            failed:false,
-                            result:null,
-                            match_id:jornadaKey
-                          });
-                          alert("✅ Pick re-sincronizado con éxito: " + sentPick.team);
-                        }} style={{padding:"4px 10px",borderRadius:6,border:"1px solid #1B4F9E",
-                          background:"rgba(27,79,158,0.1)",color:"#1B4F9E",
-                          fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}}>
-                          🔄 Re-sincronizar
-                        </button>
-                      )}
                     </div>
                   </div>
                 );
@@ -3988,5 +3968,3 @@ function ReglasTab() {
     </div>
   );
 }
-
-  
