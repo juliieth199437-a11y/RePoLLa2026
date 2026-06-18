@@ -2717,7 +2717,9 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   async function checkMissingPicks(jornadaKey) {
     if (!jornadaKey) { alert("⚠️ Elige una jornada primero."); return; }
     let sinPick = 0;
-    for (const u of survivorUsers) {
+    // Solo procesar jugadores que siguen VIVOS (menos de 2 vidas perdidas)
+    const jugadoresVivos = survivorUsers.filter(u => getLivesLost(u.username) < 2);
+    for (const u of jugadoresVivos) {
       const userPicks = survivorPicks[u.username] || {};
       const hasPick = Object.keys(userPicks).some(d => getJornadaKey(d) === jornadaKey);
       if (!hasPick) {
@@ -2733,7 +2735,9 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
         }
       }
     }
-    alert(sinPick > 0 ? "✅ " + sinPick + " jugadores marcados sin pick en jornada " + jornadaKey : "✅ Todos enviaron pick en la jornada " + jornadaKey);
+    alert(sinPick > 0
+      ? `✅ ${sinPick} jugadores VIVOS marcados sin pick en jornada ${jornadaKey} (eliminados ignorados)`
+      : `✅ Todos los jugadores VIVOS enviaron pick en la jornada ${jornadaKey}`);
   }
 
   // advanceTestDate eliminado
