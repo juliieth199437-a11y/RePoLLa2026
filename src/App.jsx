@@ -1210,6 +1210,12 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
   }
 
   function handleChange(matchId, field, value) {
+    // El ganador de penales es un nombre de equipo (texto), no debe pasar por el filtro numérico
+    if (field === "penaltyWinner") {
+      setLocal(p=>({...p,[matchId]:{...getPred(matchId),[field]:value}}));
+      setInputError(p=>({...p,[matchId]:""}));
+      return;
+    }
     const clean = value.replace(/[^0-9]/g, "");
     // Mantener "" si está vacío, o número entero si tiene valor
     const num = clean === "" ? "" : Math.max(0, parseInt(clean, 10));
@@ -1221,6 +1227,13 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
     const p = getPred(matchId);
     if (p.homeGoals === "" || p.homeGoals == null || p.awayGoals === "" || p.awayGoals == null) {
       setInputError(prev=>({...prev,[matchId]:"⚠️ Debes ingresar el marcador de ambos equipos (puedes poner 0)."}));
+      return;
+    }
+    const match = matches.find(m=>m.id===matchId);
+    const isDrawNow = parseInt(p.homeGoals)===parseInt(p.awayGoals);
+    const isKONow = match && match.fase===2;
+    if (isKONow && isDrawNow && !p.penaltyWinner) {
+      setInputError(prev=>({...prev,[matchId]:"⚠️ Pronosticaste un empate: debes elegir el ganador en penales antes de guardar."}));
       return;
     }
     setConfirming(matchId);
