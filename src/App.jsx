@@ -9,6 +9,14 @@ const SUPABASE_URL = "https://uyaukplfojpuuzatolro.supabase.co";
 const SUPABASE_KEY = "sb_publishable_ilV0k_JMxliQU1RNCUbm2g_tGxNJueo";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Guarda un key/value en la tabla config de forma segura.
+// La tabla config no tiene restricción UNIQUE, así que upsert con onConflict falla;
+// en su lugar borramos cualquier fila previa con ese key y luego insertamos.
+async function saveConfig(key, value) {
+  await sb.from("config").delete().eq("key", key);
+  return sb.from("config").insert({key, value});
+}
+
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
@@ -939,6 +947,7 @@ export default function App() {
 
   const navItems = currentUser.isAdmin ? [
     {key:"admin", label:"⚙️ Admin"},
+    {key:"armarfase2", label:"🏆 Armar Fase 2"},
     {key:"ranking", label:"🏆 Ranking"},
     {key:"pronosticos", label:"👁️ Ver Pronósticos"},
     {key:"survivor", label:"🔥 Survivor"},
@@ -995,6 +1004,7 @@ export default function App() {
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
         {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} openedDates={openedDates} setOpenedDates={setOpenedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} />}
+        {tab==="armarfase2" && currentUser.isAdmin && <ArmarFase2Tab fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} />}
       </div>
     </div>
   );
@@ -1950,6 +1960,131 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 }
 
 // ============================================================
+// ARMAR FASE 2 — Panel independiente para asignar equipos reales
+// a todos los partidos de eliminación directa (Dieciseisavos en adelante)
+// ============================================================
+function ArmarFase2Tab({fase2Overrides, setFase2Overrides}) {
+  const [sub, setSub] = useState("dieciseisavos");
+  const [local, setLocal] = useState({});
+  const [savedMsg, setSavedMsg] = useState({});
+
+  const subPhases = [
+    {key:"dieciseisavos", label:"Dieciseisavos"},
+    {key:"octavos", label:"Octavos"},
+    {key:"cuartos", label:"Cuartos"},
+    {key:"semis", label:"Semis"},
+    {key:"tercer", label:"3er Puesto"},
+    {key:"final", label:"Final"},
+  ];
+
+  const matchesOfPhase = KNOCKOUT_MATCHES.filter(m => m.phase === sub);
+
+  // Resuelve el nombre a mostrar como placeholder de ayuda: si el rival depende
+  // de un partido anterior (ej "W R32_2"), muestra el cruce real si ya está armado.
+  function resolvePlaceholder(code) {
+    if (!code) return code;
+    const m = code.match(/^W (R\d+_\d+)$/);
+    if (m && fase2Overrides[m[1]]) {
+      const ov = fase2Overrides[m[1]];
+      return `Ganador (${ov.home} vs ${ov.away})`;
+    }
+    return code;
+  }
+
+  async function saveMatch(matchId, home, away) {
+    const value = `${home}|${away}`;
+    // Borrar override previo si existe, luego insertar (evita error de upsert sin constraint única)
+    await sb.from("config").delete().eq("key", `fase2_${matchId}`);
+    const {error} = await sb.from("config").insert({key:`fase2_${matchId}`, value});
+    if (error) { alert("❌ Error guardando: " + error.message); return; }
+    setFase2Overrides(prev => ({...prev, [matchId]: {home, away}}));
+    setSavedMsg(p=>({...p,[matchId]:true}));
+    setTimeout(()=>setSavedMsg(p=>({...p,[matchId]:false})),3000);
+  }
+
+  async function clearMatch(matchId) {
+    if (!window.confirm("¿Borrar el cruce guardado para " + matchId + "?")) return;
+    await sb.from("config").delete().eq("key", `fase2_${matchId}`);
+    setFase2Overrides(prev => {
+      const np = {...prev};
+      delete np[matchId];
+      return np;
+    });
+    setLocal(p => {
+      const np = {...p};
+      delete np[`f2_${matchId}`];
+      return np;
+    });
+  }
+
+  return (
+    <div>
+      <div style={{background:"linear-gradient(135deg,#1B4F9E,#C41E3A)",border:"none",borderRadius:14,padding:"20px 24px",marginBottom:16}}>
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🏗️ ARMAR FASE 2</div>
+        <div style={{fontSize:15,color:"#E8EDF5",marginTop:4,lineHeight:1.7}}>
+          Asigna los equipos reales a cada partido de eliminación directa conforme se vayan conociendo los resultados.
+          Empieza por Dieciseisavos; cuando esos partidos tengan resultado, los de Octavos mostrarán automáticamente
+          quién es el ganador para que sea más fácil armar el siguiente cruce.
+        </div>
+      </div>
+
+      <div className="phase-tabs" style={{marginBottom:14}}>
+        {subPhases.map(p=>(
+          <button key={p.key} className={`phase-tab ${sub===p.key?"active":""}`} onClick={()=>setSub(p.key)}>{p.label}</button>
+        ))}
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {matchesOfPhase.map(match => {
+          const current = fase2Overrides[match.id] || {};
+          const localKey = `f2_${match.id}`;
+          const localVal = local[localKey] || {home: current.home||"", away: current.away||""};
+          return (
+            <div key={match.id} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",background:"#F8F9FC",borderRadius:10,padding:"10px 12px",border:"1px solid var(--border)"}}>
+              <div style={{minWidth:110}}>
+                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#1B4F9E"}}>{match.id}</div>
+                <div style={{fontSize:11,color:"#6B7A99"}}>{fmtDate(match.date)} · {match.time}</div>
+                <div style={{fontSize:11,color:"#6B7A99",fontWeight:600}}>{resolvePlaceholder(match.home)} vs {resolvePlaceholder(match.away)}</div>
+              </div>
+              <select value={localVal.home} onChange={e=>setLocal(p=>({...p,[localKey]:{...localVal,home:e.target.value}}))}
+                style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
+                <option value="">-- Equipo local --</option>
+                {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              <span style={{fontWeight:700,color:"#6B7A99"}}>vs</span>
+              <select value={localVal.away} onChange={e=>setLocal(p=>({...p,[localKey]:{...localVal,away:e.target.value}}))}
+                style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
+                <option value="">-- Equipo visitante --</option>
+                {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
+              </select>
+              <button disabled={!localVal.home || !localVal.away} onClick={()=>saveMatch(match.id, localVal.home, localVal.away)}
+                style={{padding:"6px 14px",borderRadius:8,border:"1px solid #2D8A3E",
+                  background:(localVal.home && localVal.away)?"rgba(45,138,62,0.1)":"#eee",
+                  color:(localVal.home && localVal.away)?"#2D8A3E":"#aaa",
+                  fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:(localVal.home && localVal.away)?"pointer":"default"}}>
+                💾 Guardar
+              </button>
+              {current.home && current.away && (
+                <button onClick={()=>clearMatch(match.id)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #C41E3A",background:"transparent",color:"#C41E3A",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                  🗑️ Borrar
+                </button>
+              )}
+              {savedMsg[match.id] && <span style={{color:"#2D8A3E",fontWeight:700,fontSize:13}}>✅ Guardado</span>}
+              {current.home && current.away && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ {current.home} vs {current.away}</span>}
+            </div>
+          );
+        })}
+        {matchesOfPhase.length === 0 && (
+          <div style={{textAlign:"center",padding:"30px",color:"#6B7A99",fontSize:15}}>
+            No hay partidos definidos para esta fase.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // ADMIN TAB
 // ============================================================
 function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, openedDates, setOpenedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked, fase2Overrides, setFase2Overrides}) {
@@ -1961,8 +2096,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
   const [localFinal, setLocalFinal]=useState(finalResults||{});
   const [deletingUser, setDeletingUser]=useState(null);
   const [deleteMsg, setDeleteMsg]=useState("");
-  const [fase2Local, setFase2Local]=useState({});
-  const [fase2SavedMsg, setFase2SavedMsg]=useState({});
 
   async function borrarPronosticos(username, tipo) {
     try {
@@ -2024,10 +2157,10 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
   const subPhases=[
     {key:"grupos",label:"Grupos"},{key:"dieciseisavos",label:"Dieciseisavos"},
-    {key:"cuartos",label:"Cuartos"},{key:"semis",label:"Semis"},
+    {key:"octavos",label:"Octavos"},{key:"cuartos",label:"Cuartos"},{key:"semis",label:"Semis"},
     {key:"tercer",label:"3er Puesto"},{key:"final",label:"Final"},
   ];
-  const matches = ALL_MATCHES.filter(m=>m.phase===matchPhase);
+  const matches = ALL_MATCHES.filter(m=>m.phase===matchPhase).map(m => applyFase2Override(m, fase2Overrides));
 
   function getR(matchId){return localResults[matchId]||results[matchId]||{};}
   function getGR(g){return localGroupResults[g]||groupResults[g]||{};}
@@ -2177,57 +2310,6 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
                 <button className="btn-sm" style={{width:"100%",background:saved?"var(--green)":"var(--accent)"}} onClick={()=>saveGR(g)}>
                   {saved?"✅ Guardado":"💾 Guardar"}
                 </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Armar Fase 2 — asignar equipos reales a Dieciseisavos */}
-      <div style={{marginBottom:24,background:"rgba(27,79,158,0.06)",border:"1px solid rgba(27,79,158,0.3)",borderRadius:12,padding:"14px 16px"}}>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:6}}>🏆 Armar Fase 2 — Dieciseisavos</div>
-        <div style={{fontSize:14,color:"#6B7A99",marginBottom:12}}>
-          Cuando ya se conozcan los equipos clasificados (1° y 2° de cada grupo + los 8 mejores terceros),
-          selecciona en cada partido el <strong>Equipo Local</strong> y el <strong>Equipo Visitante</strong> y presiona Guardar.
-          Apenas guardes, los jugadores verán el cruce real en vez de "{`{`}1A vs 2B{`}`}".
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {KNOCKOUT_MATCHES.filter(m=>m.phase==="dieciseisavos").map(match => {
-            const current = fase2Overrides[match.id] || {};
-            const localKey = `f2_${match.id}`;
-            const localVal = fase2Local[localKey] || {home: current.home||"", away: current.away||""};
-            return (
-              <div key={match.id} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",background:"#F8F9FC",borderRadius:10,padding:"10px 12px"}}>
-                <div style={{minWidth:90}}>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:15,color:"#1B4F9E"}}>{match.id}</div>
-                  <div style={{fontSize:11,color:"#6B7A99"}}>{fmtDate(match.date)} · {match.time}</div>
-                  <div style={{fontSize:11,color:"#6B7A99"}}>{match.label}</div>
-                </div>
-                <select value={localVal.home} onChange={e=>setFase2Local(p=>({...p,[localKey]:{...localVal,home:e.target.value}}))}
-                  style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
-                  <option value="">-- Equipo local --</option>
-                  {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
-                </select>
-                <span style={{fontWeight:700,color:"#6B7A99"}}>vs</span>
-                <select value={localVal.away} onChange={e=>setFase2Local(p=>({...p,[localKey]:{...localVal,away:e.target.value}}))}
-                  style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
-                  <option value="">-- Equipo visitante --</option>
-                  {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
-                </select>
-                <button disabled={!localVal.home || !localVal.away} onClick={async()=>{
-                  const value = `${localVal.home}|${localVal.away}`;
-                  await sb.from("config").upsert({key:`fase2_${match.id}`, value}, {onConflict:"key"});
-                  setFase2Overrides(prev => ({...prev, [match.id]: {home: localVal.home, away: localVal.away}}));
-                  setFase2SavedMsg(p=>({...p,[match.id]:true}));
-                  setTimeout(()=>setFase2SavedMsg(p=>({...p,[match.id]:false})),3000);
-                }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #2D8A3E",
-                  background:(localVal.home && localVal.away)?"rgba(45,138,62,0.1)":"#eee",
-                  color:(localVal.home && localVal.away)?"#2D8A3E":"#aaa",
-                  fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:(localVal.home && localVal.away)?"pointer":"default"}}>
-                  💾 Guardar
-                </button>
-                {fase2SavedMsg[match.id] && <span style={{color:"#2D8A3E",fontWeight:700,fontSize:13}}>✅ Guardado</span>}
-                {current.home && current.away && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ {current.home} vs {current.away}</span>}
               </div>
             );
           })}
@@ -2442,8 +2524,8 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
                       } // cerrado -> auto (ambos arrays ya quedan sin la fecha)
                       setBlockedDates(newBlocked);
                       setOpenedDates(newOpened);
-                      await sb.from("config").upsert({key:"blockedDates",value:newBlocked.join(",")},{onConflict:"key"});
-                      await sb.from("config").upsert({key:"openedDates",value:newOpened.join(",")},{onConflict:"key"});
+                      await saveConfig("blockedDates", newBlocked.join(","));
+                      await saveConfig("openedDates", newOpened.join(","));
                     }} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${s.border}`,fontSize:12,fontWeight:700,cursor:"pointer",
                       background:s.bg, color:s.color}}>
                       {s.icon} {d.slice(5)} · {s.label}
@@ -2459,7 +2541,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               <button onClick={async()=>{
                 const newVal = !clasifBlocked;
                 setClasifBlocked(newVal);
-                await sb.from("config").upsert({key:"clasifBlocked",value:newVal?"true":"false"},{onConflict:"key"});
+                await saveConfig("clasifBlocked", newVal?"true":"false");
               }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
                 background:clasifBlocked?"#C41E3A":"rgba(45,138,62,0.1)",
                 borderColor:clasifBlocked?"#C41E3A":"#2D8A3E",
@@ -2474,7 +2556,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               <button onClick={async()=>{
                 const newVal = !fase3Blocked;
                 setFase3Blocked(newVal);
-                await sb.from("config").upsert({key:"fase3Blocked",value:newVal?"true":"false"},{onConflict:"key"});
+                await saveConfig("fase3Blocked", newVal?"true":"false");
               }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
                 background:fase3Blocked?"#C41E3A":"rgba(45,138,62,0.1)",
                 borderColor:fase3Blocked?"#C41E3A":"#2D8A3E",
@@ -2710,7 +2792,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
 
   async function setSurvivorMaxDate(date) {
     setSurvivorTestDate(date);
-    await sb.from("config").upsert({key:"survivorTestDate", value:date},{onConflict:"key"});
+    await saveConfig("survivorTestDate", date);
   }
 
   // Verifica picks faltantes para UNA jornada específica elegida por el admin
@@ -2911,7 +2993,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                         ? survivorActiveJornadas.filter(x=>x!==jk)
                         : [...survivorActiveJornadas, jk];
                       setSurvivorActiveJornadas(newActive);
-                      await sb.from("config").upsert({key:"survivorActiveJornadas",value:newActive.join(",")},{onConflict:"key"});
+                      await saveConfig("survivorActiveJornadas", newActive.join(","));
                       // Mantener survivorMaxDate como la última jornada activa (para compatibilidad)
                       const lastActive = newActive.sort().slice(-1)[0];
                       if (lastActive) await setSurvivorMaxDate(lastActive);
@@ -2940,7 +3022,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                       ? survivorBlockedDates.filter(x=>x!==jk)
                       : [...survivorBlockedDates, jk];
                     setSurvivorBlockedDates(newBlocked);
-                    await sb.from("config").upsert({key:"survivorBlockedDates",value:newBlocked.join(",")},{onConflict:"key"});
+                    await saveConfig("survivorBlockedDates", newBlocked.join(","));
                   }} style={{padding:"5px 10px",borderRadius:8,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
                     background:isBlocked?"#C41E3A":"transparent",
                     borderColor:isBlocked?"#C41E3A":"var(--border)",
