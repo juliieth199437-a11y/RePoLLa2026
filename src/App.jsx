@@ -291,7 +291,7 @@ function arePredictionsVisible(match, blockedDates=[]) {
 // ============================================================
 // SCORING — Reglas actualizadas
 // Fase 1 Grupos: 3pts marcador exacto + 1pt ganador/empate acertado
-// Fase 2 Eliminatorias: 3pts marcador exacto (90min) + 1pt extra si empate y acierta ganador penales
+// Fase 2 Eliminatorias: 3pts marcador exacto (90min) O 1pt solo ganador (no acumulan) + 1pt extra si empate exacto y acierta penales (máx 4pts)
 // Fase 3 Campeón: 12/9/7/5 pts
 // Tabla B Grupos: 2pts por 1° y 2° en orden exacto
 // ============================================================
@@ -317,13 +317,15 @@ function calcMatchScore(matchId, pred, result) {
       pts = 1;
     }
   } else {
-    // Fase Eliminatorias: 3pts marcador exacto (90min) + 1pt ganador + 1pt extra empate+penales
-    if (ph===rh && pa===ra) pts += 3;
-    // 1pt por acertar ganador (incluso sin acertar marcador exacto)
-    if (predResult === realResult) pts += 1;
-    // +1 extra si pronosticó empate exacto Y acierta ganador en penales
-    if (ph===pa && pa===ra && ph===rh && pred.penaltyWinner && result.penaltyWinner && pred.penaltyWinner===result.penaltyWinner) {
-      pts += 1;
+    // Fase Eliminatorias: 3pts marcador exacto (90min) O 1pt solo ganador (no acumulan)
+    // +1 extra SOLO si el marcador exacto fue empate Y acierta ganador en penales (máximo 4pts)
+    if (ph===rh && pa===ra) {
+      pts = 3;
+      if (ph===pa && pred.penaltyWinner && result.penaltyWinner && pred.penaltyWinner===result.penaltyWinner) {
+        pts += 1;
+      }
+    } else if (predResult === realResult) {
+      pts = 1;
     }
   }
   return pts;
@@ -1114,7 +1116,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDat
 
   return (
     <div>
-      <div className="phase-banner f2">⚡ Fase 2 · Eliminatorias — 3pts marcador · 1pt ganador · +1pt extra: empate exacto + acierta penales</div>
+      <div className="phase-banner f2">⚡ Fase 2 · Eliminatorias — 3pts marcador exacto (o 1pt solo ganador) · +1pt extra si acierta empate exacto y ganador en penales (máx. 4pts)</div>
       <div className="phase-tabs">
         {subPhases.map(p=>(
           <button key={p.key} className={`phase-tab ${sub===p.key?"active":""}`} onClick={()=>setSub(p.key)}>{p.label}</button>
