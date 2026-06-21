@@ -419,6 +419,29 @@ export default function App() {
       }
     } catch(e) { console.error("Error recargando predictions:", e); }
   }
+  // Recargar group_picks completos (evita el límite de 1000 filas de Supabase: 85 jugadores x 12 grupos puede superar 1000)
+  async function reloadAllGroupPicks() {
+    try {
+      const allPicks = [];
+      let from = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data: batch } = await sb.from("group_picks").select("*").range(from, from + pageSize - 1);
+        if (!batch || batch.length === 0) break;
+        allPicks.push(...batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+      }
+      if (allPicks.length > 0) {
+        const mapped = {};
+        allPicks.forEach(p => {
+          if (!mapped[p.username]) mapped[p.username] = {};
+          mapped[p.username][p.group_key] = {first: p.first, second: p.second};
+        });
+        setGroupPicks(mapped);
+      }
+    } catch(e) { console.error("Error recargando group_picks:", e); }
+  }
   const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
   // Controles de bloqueo manual (admin)
   const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 forzadas CERRADAS
@@ -565,11 +588,19 @@ export default function App() {
           await sb.from("users").upsert(toInsert, {onConflict:"username"});
         }
 
-        // Predicciones — cargar solo del usuario actual primero, luego el resto
-        const { data: preds } = await sb.from("predictions").select("*");
-        if (preds) {
+        // Predicciones (paginado para evitar el límite de 1000 filas de Supabase)
+        const allPredsInit = [];
+        let predFrom = 0;
+        while (true) {
+          const { data: predBatch } = await sb.from("predictions").select("*").range(predFrom, predFrom + 999);
+          if (!predBatch || predBatch.length === 0) break;
+          allPredsInit.push(...predBatch);
+          if (predBatch.length < 1000) break;
+          predFrom += 1000;
+        }
+        if (allPredsInit.length > 0) {
           const mapped = {};
-          preds.forEach(p => {
+          allPredsInit.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
             // Guardar homeGoals como número (no string) para que alreadySaved funcione bien
             mapped[p.username][p.match_id] = {
@@ -581,11 +612,19 @@ export default function App() {
           setPredictions(mapped);
         }
 
-        // Group picks
-        const { data: gp } = await sb.from("group_picks").select("*");
-        if (gp) {
+        // Group picks (paginado para evitar el límite de 1000 filas de Supabase)
+        const allGp = [];
+        let gpFrom = 0;
+        while (true) {
+          const { data: gpBatch } = await sb.from("group_picks").select("*").range(gpFrom, gpFrom + 999);
+          if (!gpBatch || gpBatch.length === 0) break;
+          allGp.push(...gpBatch);
+          if (gpBatch.length < 1000) break;
+          gpFrom += 1000;
+        }
+        if (allGp.length > 0) {
           const mapped = {};
-          gp.forEach(p => {
+          allGp.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
             mapped[p.username][p.group_key] = {first: p.first, second: p.second};
           });
@@ -647,11 +686,19 @@ export default function App() {
           setBolsa({valorBase: 50000, pagos: pagosMap});
         }
 
-        // Survivor picks
-        const { data: sp } = await sb.from("survivor_picks").select("*");
-        if (sp) {
+        // Survivor picks (paginado por la misma razón: puede crecer mucho durante el torneo)
+        const allSp = [];
+        let spFrom = 0;
+        while (true) {
+          const { data: spBatch } = await sb.from("survivor_picks").select("*").range(spFrom, spFrom + 999);
+          if (!spBatch || spBatch.length === 0) break;
+          allSp.push(...spBatch);
+          if (spBatch.length < 1000) break;
+          spFrom += 1000;
+        }
+        if (allSp.length > 0) {
           const mapped = {};
-          sp.forEach(p => {
+          allSp.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
             mapped[p.username][p.date] = { team: p.team, failed: p.failed, result: p.result };
           });
@@ -988,7 +1035,7 @@ export default function App() {
         {navItems.map(i=>(
           <button key={i.key} className={`nav-btn ${tab===i.key?"active":""}`} onClick={()=>{
             setTab(i.key);
-            if (i.key==="ranking" || i.key==="pronosticos") reloadAllPredictions();
+            if (i.key==="ranking" || i.key==="pronosticos") { reloadAllPredictions(); reloadAllGroupPicks(); }
           }}>{i.label}</button>
         ))}
       </nav>
