@@ -2550,6 +2550,42 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               </div>
             </div>
 
+            {/* Fase 2 por fecha — mismo mecanismo de blockedDates/openedDates, 3 estados: Auto / Forzar Abierto / Forzar Cerrado */}
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:6}}>🏆 Fase 2 — Estado de envío por fecha (clic para cambiar: Auto → Abierto → Cerrado → Auto):</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {[...new Set(KNOCKOUT_MATCHES.map(m=>m.date))].sort().map(d=>{
+                  const isBlocked = blockedDates.includes(d);
+                  const isOpened = openedDates.includes(d);
+                  const state = isBlocked ? "closed" : isOpened ? "open" : "auto";
+                  const styles = {
+                    auto:   {bg:"transparent", border:"var(--border)", color:"var(--text)", icon:"⚙️", label:"Auto"},
+                    open:   {bg:"#2D8A3E", border:"#2D8A3E", color:"#fff", icon:"🔓", label:"Abierto"},
+                    closed: {bg:"#C41E3A", border:"#C41E3A", color:"#fff", icon:"🔒", label:"Cerrado"},
+                  };
+                  const s = styles[state];
+                  return (
+                    <button key={d} onClick={async()=>{
+                      let newBlocked = blockedDates.filter(x=>x!==d);
+                      let newOpened = openedDates.filter(x=>x!==d);
+                      if (state === "auto") {
+                        newOpened = [...newOpened, d]; // auto -> abierto
+                      } else if (state === "open") {
+                        newBlocked = [...newBlocked, d]; // abierto -> cerrado
+                      } // cerrado -> auto (ambos arrays ya quedan sin la fecha)
+                      setBlockedDates(newBlocked);
+                      setOpenedDates(newOpened);
+                      await saveConfig("blockedDates", newBlocked.join(","));
+                      await saveConfig("openedDates", newOpened.join(","));
+                    }} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${s.border}`,fontSize:12,fontWeight:700,cursor:"pointer",
+                      background:s.bg, color:s.color}}>
+                      {s.icon} {d.slice(5)} · {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Clasificación */}
             <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:8}}>
               <span style={{fontSize:13,fontWeight:700}}>📊 Clasificación grupos:</span>
