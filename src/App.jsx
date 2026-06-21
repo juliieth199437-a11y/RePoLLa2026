@@ -1047,7 +1047,7 @@ export default function App() {
         {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
         {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
-        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} fase2Overrides={fase2Overrides} />}
+        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} fase2Overrides={fase2Overrides} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
@@ -1638,8 +1638,9 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
 // ============================================================
 // VER PRONÓSTICOS TAB — partido-centric, solo visible tras cierre
 // ============================================================
-function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, blockedDates=[], fase2Overrides={}}) {
+function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, blockedDates=[], fase2Overrides={}, clasifBlocked=false, fase3Blocked=false}) {
   const [freshPreds, setFreshPreds] = useState({});
+  const [viewCategory, setViewCategory] = useState("partidos");
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
   const [fechaFiltroVer, setFechaFiltroVer]=useState("");
@@ -1666,8 +1667,8 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
         const pred = preds[m.id];
         if (!pred) return;
         const res = results[m.id];
-        // Jugadores: solo exportar si el partido ya cerró (pronóstico visible)
-        if (!currentUser.isAdmin && !arePredictionsVisible(m, blockedDates)) return;
+        // Solo exportar si el partido ya está visible (misma regla que la pantalla, sin excepción de admin)
+        if (!arePredictionsVisible(m, blockedDates)) return;
         let acertoMarcador = "", acertoGanador = "", pts = "";
         if (res) {
           acertoMarcador = (pred.homeGoals===res.homeGoals && pred.awayGoals===res.awayGoals) ? "SÍ" : "NO";
@@ -1694,6 +1695,8 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
       const picks = groupPicks[u.username] || {};
       Object.entries(picks).forEach(([group, pick]) => {
         const res = groupResults[group];
+        // Jugadores: solo exportar si esa tabla ya está habilitada para verse (igual que en Ranking)
+        if (!res && !clasifBlocked) return;
         let pts = "";
         if (res) {
           if (pick.first===res.first && pick.second===res.second) pts=4;
@@ -1712,6 +1715,8 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
     participants.forEach(u => {
       const fp = finalPicks[u.username];
       if (!fp || !fp.champion) return;
+      // Jugadores: solo exportar si el podio ya está habilitado para verse (igual que en Ranking)
+      if (!finalResults?.champion && !fase3Blocked) return;
       rows.push([u.name, u.apodo||u.name, fp.champion, fp.runnerUp||"", fp.third||"", fp.fourth||"", ""]);
     });
 
@@ -1759,6 +1764,16 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
         </button>
 
       </div>
+      <div className="phase-tabs">
+        <button className={`phase-tab ${viewCategory==="partidos"?"active":""}`}
+          onClick={()=>{setViewCategory("partidos");setSelectedMatch(null);}}>⚽ Partidos</button>
+        <button className={`phase-tab ${viewCategory==="tablab"?"active":""}`}
+          onClick={()=>{setViewCategory("tablab");setSelectedMatch(null);}}>📊 Tabla B</button>
+        <button className={`phase-tab ${viewCategory==="fase3"?"active":""}`}
+          onClick={()=>{setViewCategory("fase3");setSelectedMatch(null);}}>🏆 Fase 3</button>
+      </div>
+
+      {viewCategory==="partidos" && <>
       <div className="phase-tabs">
         {subPhases.map(p=>(
           <button key={p.key} className={`phase-tab ${phase===p.key?"active":""}`}
@@ -1868,23 +1883,46 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
           </div>
         </div>
       )}
+      </>}
 
-      {/* TABLA B — Clasificación de grupos */}
-      {!selectedMatch && phase==="grupos" && groupPicks && (
-        <div style={{marginTop:20}}>
-          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)",marginBottom:10}}>📊 Pronósticos Tabla B — Clasificación de Grupos</div>
-          {participants.map(u => {
-            const picks = groupPicks[u.username];
-            if (!picks || Object.keys(picks).length===0) return null;
+      {/* TABLA B — Clasificación de grupos (pestaña propia) */}
+      {viewCategory==="tablab" && (
+        <div>
+          <div className="alert alert-info" style={{marginBottom:14}}>
+            📊 1° y 2° de cada grupo, pronosticados por cada participante.
+          </div>
+          {Object.keys(GROUPS).map(group => {
+            const res = groupResults[group];
+            const visible = !!res || clasifBlocked;
             return (
-              <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border)"}}>
-                <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>{u.apodo||u.name}</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6}}>
-                  {Object.entries(picks).map(([group,pick]) => (
-                    <div key={group} style={{fontSize:13,background:"rgba(27,79,158,0.06)",borderRadius:8,padding:"4px 8px"}}>
-                      <span style={{fontWeight:700}}>Grupo {group}:</span> 1°{pick.first} / 2°{pick.second}
+              <div key={group} className="card" style={{marginBottom:12}}>
+                <div className="card-body">
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>
+                    Grupo {group}{res && ` — Real: 1° ${res.first} / 2° ${res.second}`}
+                  </div>
+                  {!visible && <div style={{fontSize:13,color:"#6B7A99"}}>🔒 Oculto hasta el cierre de clasificación</div>}
+                  {visible && (
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {participants.map(u => {
+                        const pick = groupPicks[u.username]?.[group];
+                        if (!pick) return null;
+                        let pts = "";
+                        if (res) {
+                          if (pick.first===res.first && pick.second===res.second) pts=4;
+                          else if (pick.first===res.second && pick.second===res.first) pts=2;
+                          else if ([pick.first,pick.second].includes(res.first) || [pick.first,pick.second].includes(res.second)) pts=1;
+                          else pts=0;
+                        }
+                        return (
+                          <div key={u.username} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#F8F9FC",borderRadius:8}}>
+                            <div style={{flex:1,fontWeight:600,fontSize:14}}>{u.apodo||u.name}</div>
+                            <div style={{fontSize:13}}>1° {pick.first} · 2° {pick.second}</div>
+                            {res && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:pts>0?"var(--green)":"var(--red)",minWidth:50,textAlign:"right"}}>+{pts}pts</div>}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             );
@@ -1892,25 +1930,35 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
         </div>
       )}
 
-      {/* FASE 3 — Campeón */}
-      {!selectedMatch && phase==="grupos" && finalPicks && (
-        <div style={{marginTop:20}}>
-          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)",marginBottom:10}}>🏆 Pronósticos Fase 3 — Campeón</div>
-          {participants.map(u => {
-            const fp = finalPicks[u.username];
-            if (!fp || !fp.champion) return null;
-            return (
-              <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border)"}}>
-                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{u.apodo||u.name}</div>
-                <div style={{fontSize:13,display:"flex",gap:12,flexWrap:"wrap"}}>
-                  <span>🥇 {fp.champion}</span>
-                  <span>🥈 {fp.runnerUp}</span>
-                  <span>🥉 {fp.third}</span>
-                  <span>4° {fp.fourth}</span>
-                </div>
-              </div>
-            );
-          })}
+      {/* FASE 3 — Podio final (pestaña propia) */}
+      {viewCategory==="fase3" && (
+        <div>
+          <div className="alert alert-info" style={{marginBottom:14}}>
+            🏆 Pronóstico de campeón, subcampeón, 3er y 4° puesto de cada participante.
+          </div>
+          {(!!finalResults?.champion || fase3Blocked) ? (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {participants.map(u => {
+                const fp = finalPicks[u.username];
+                if (!fp || !fp.champion) return null;
+                return (
+                  <div key={u.username} className="card">
+                    <div className="card-body">
+                      <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{u.apodo||u.name}</div>
+                      <div style={{fontSize:13,display:"flex",gap:12,flexWrap:"wrap"}}>
+                        <span>🥇 {fp.champion}</span>
+                        <span>🥈 {fp.runnerUp}</span>
+                        <span>🥉 {fp.third}</span>
+                        <span>4° {fp.fourth}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="card"><div className="card-body" style={{fontSize:13,color:"#6B7A99"}}>🔒 Oculto hasta el cierre de Fase 3</div></div>
+          )}
         </div>
       )}
     </div>
