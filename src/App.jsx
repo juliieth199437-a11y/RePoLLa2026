@@ -2901,7 +2901,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   // Mapeo inline para calcular jornadaKey de realToday
   const JORNADA_MAP = {
     '2026-06-11': '2026-06-11', '2026-06-12': '2026-06-11',
-    '2026-06-28': '2026-06-28', '2026-06-29': '2026-06-28',
+    '2026-06-28': '2026-06-28', '2026-06-29': '2026-06-28', // un solo pick entre ambos días
     '2026-07-09': '2026-07-09', '2026-07-10': '2026-07-09',
   };
   const getJornadaKeyEarly = (d) => JORNADA_MAP[d] || d;
@@ -2976,8 +2976,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const UNIFIED_DAYS = {
     '2026-06-11': '2026-06-11', // Jornada 1
     '2026-06-12': '2026-06-11', // Jornada 1 (mismo bloque)
-    '2026-06-28': '2026-06-28', // Jornada 17
-    '2026-06-29': '2026-06-28', // Jornada 17 (mismo bloque)
+    '2026-06-28': '2026-06-28', // Fase 2 — un solo pick entre 28 y 29
+    '2026-06-29': '2026-06-28', // Fase 2 — mismo bloque que el 28
     '2026-07-09': '2026-07-09', // Jornada 24
     '2026-07-10': '2026-07-09', // Jornada 24 (mismo bloque)
   };
