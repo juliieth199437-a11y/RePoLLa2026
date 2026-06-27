@@ -1040,8 +1040,8 @@ export default function App() {
         ))}
       </nav>
       <div className="content">
-        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
-        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} />}
+        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
+        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
         {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} survivorBlockedDates={survivorBlockedDates} setSurvivorBlockedDates={setSurvivorBlockedDates} survivorActiveJornadas={survivorActiveJornadas} setSurvivorActiveJornadas={setSurvivorActiveJornadas} />}
         {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} openedDates={openedDates} clasifBlocked={clasifBlocked} />}
         {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
@@ -1092,12 +1092,13 @@ function LoginScreen({login}) {
 // ============================================================
 // HOY TAB — only today's matches
 // ============================================================
-function HoyTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[]}) {
+function HoyTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[], fase2Overrides={}}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   // Antes del inicio del Mundial: anclar al 11 jun para que la gente pueda enviar pronósticos
   const MUNDIAL_START = "2026-06-11";
   const today = realToday < MUNDIAL_START ? MUNDIAL_START : realToday;
-  const todayMatches = ALL_MATCHES.filter(m => m.date === today && m.fase <= 2);
+  const todayMatches = ALL_MATCHES.filter(m => m.date === today && m.fase <= 2)
+    .map(m => applyFase2Override(m, fase2Overrides));
   const isAnchored = realToday < MUNDIAL_START;
 
   return (
@@ -2849,13 +2850,14 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 // ============================================================
 // MAÑANA TAB
 // ============================================================
-function MananaTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[]}) {
+function MananaTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[], fase2Overrides={}}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
   // Antes del inicio: mostrar el 12 jun (jornada 1 segundo día)
   const tomorrow = realToday < MUNDIAL_START ? "2026-06-12" : tomorrowStr();
   const isAnchored = realToday < MUNDIAL_START;
-  const matches = ALL_MATCHES.filter(m => m.date === tomorrow && m.fase <= 2);
+  const matches = ALL_MATCHES.filter(m => m.date === tomorrow && m.fase <= 2)
+    .map(m => applyFase2Override(m, fase2Overrides));
   return (
     <div>
       <div className="phase-banner f1">
@@ -2882,7 +2884,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, blockedDa
 function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate, survivorBlockedDates, setSurvivorBlockedDates, survivorActiveJornadas, setSurvivorActiveJornadas}) {
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && !u.isDemo && u.survivorEnabled === true);
-  const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
+  const groupDates = [...new Set(ALL_MATCHES.map(m => m.date))].sort();
   // Jornada seleccionada en "Ver Survivor de..." (admin)
   const [viewJornada, setViewJornada] = useState("");
   // Panel ingreso manual de pick
@@ -3012,7 +3014,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
     .filter(([d, k]) => k === todayJornadaKey)
     .map(([d]) => d);
   const jornadaMatchDates = jornadaDates.length > 0 ? jornadaDates : [today];
-  const todayMatches = GROUP_MATCHES.filter(m => jornadaMatchDates.includes(m.date));
+  const todayMatches = ALL_MATCHES.filter(m => jornadaMatchDates.includes(m.date));
   const todayTeams = [...new Set(todayMatches.flatMap(m => [m.home, m.away]))];
   // Available = playing in this jornada AND not already used
   const availableTeams = todayTeams.filter(t => !myUsedTeams.includes(t));
@@ -3247,7 +3249,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
               // Buscar si ya envió pick para esta jornada específica
               const datesOfJornada = groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaKey);
               const sentPick = myPicks[jornadaKey] || datesOfJornada.map(d=>myPicks[d]).find(Boolean);
-              const jornadaMatches = GROUP_MATCHES.filter(m => datesOfJornada.includes(m.date));
+              const jornadaMatches = ALL_MATCHES.filter(m => datesOfJornada.includes(m.date));
               const jornadaTeams = [...new Set(jornadaMatches.flatMap(m=>[m.home,m.away]))];
               const availTeams = jornadaTeams.filter(t => !myUsedTeams.includes(t));
 
@@ -3285,12 +3287,18 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                         if (!selectedTeam) return;
                         setSaved(false);
                         const pickDate = jornadaKey;
-                        setSurvivorPicks(prev=>({...prev,[currentUser.username]:{...(prev[currentUser.username]||{}),[pickDate]:{team:selectedTeam,failed:false,result:null}}}));
-                        await sb.from("survivor_picks").delete().eq("username",currentUser.username).eq("date",pickDate);
-                        await sb.from("survivor_picks").insert({username:currentUser.username,date:pickDate,team:selectedTeam,failed:false,result:null,match_id:pickDate});
-                        setSaved(true);
-                        setSelectedTeam("");
-                        setTimeout(()=>setSaved(false),2500);
+                        try {
+                          await sb.from("survivor_picks").delete().eq("username",currentUser.username).eq("date",pickDate);
+                          const {error} = await sb.from("survivor_picks").insert({username:currentUser.username,date:pickDate,team:selectedTeam,failed:false,result:null,match_id:pickDate});
+                          if (error) throw error;
+                          // Solo reflejar como guardado en pantalla DESPUÉS de confirmar éxito en la base de datos
+                          setSurvivorPicks(prev=>({...prev,[currentUser.username]:{...(prev[currentUser.username]||{}),[pickDate]:{team:selectedTeam,failed:false,result:null}}}));
+                          setSaved(true);
+                          setSelectedTeam("");
+                          setTimeout(()=>setSaved(false),2500);
+                        } catch(e) {
+                          alert("❌ No se pudo guardar tu pick. Por favor intenta de nuevo.\n\nDetalle: " + (e?.message||"error desconocido"));
+                        }
                       }} style={{padding:"10px 20px",background:"var(--gold)",color:"#000",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:15,fontWeight:700,cursor:"pointer"}}>
                         🔥 Confirmar pick
                       </button>
@@ -3419,7 +3427,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           {(()=>{
             const jornadaParaManual = manualPickDate || viewJornada || todayJornadaKey;
             const teamsForJornada = [...new Set(
-              GROUP_MATCHES.filter(m => groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaParaManual).includes(m.date))
+              ALL_MATCHES.filter(m => groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaParaManual).includes(m.date))
               .flatMap(m=>[m.home,m.away])
             )].sort();
             return (
