@@ -1046,7 +1046,7 @@ export default function App() {
         {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} openedDates={openedDates} clasifBlocked={clasifBlocked} />}
         {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
-        {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
+        {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} fase2Overrides={fase2Overrides} />}
         {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} fase2Overrides={fase2Overrides} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
@@ -1468,7 +1468,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick, clasifBlock
 // ============================================================
 // RANKING TAB
 // ============================================================
-function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults, blockedDates=[], clasifBlocked=false, fase3Blocked=false}) {
+function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults, blockedDates=[], clasifBlocked=false, fase3Blocked=false, fase2Overrides={}}) {
   const [selected, setSelected] = React.useState(null);
   const [rankTab, setRankTab] = React.useState("fase1");
   const me = leaderboard.find(u=>u.username===currentUser.username);
@@ -1480,7 +1480,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
     const gPicks = groupPicks[selected]||{};
     const fPicks = finalPicks[selected]||{};
     const fase1Matches = GROUP_MATCHES.filter(m => preds[m.id]);
-    const fase2Matches = KNOCKOUT_MATCHES.filter(m => preds[m.id]);
+    const fase2Matches = KNOCKOUT_MATCHES.filter(m => preds[m.id]).map(m => applyFase2Override(m, fase2Overrides));
     return (
       <div>
         <button onClick={()=>{setSelected(null);setRankTab("fase1");}} style={{marginBottom:14,padding:"7px 14px",borderRadius:8,border:"1px solid var(--border)",background:"transparent",color:"var(--text)",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>
@@ -2088,7 +2088,8 @@ function ArmarFase2Tab({fase2Overrides, setFase2Overrides}) {
     {key:"final", label:"Final"},
   ];
 
-  const matchesOfPhase = KNOCKOUT_MATCHES.filter(m => m.phase === sub);
+  const matchesOfPhase = KNOCKOUT_MATCHES.filter(m => m.phase === sub)
+    .map(m => applyFase2Override(m, fase2Overrides));
 
   // Resuelve el nombre a mostrar como placeholder de ayuda: si el rival depende
   // de un partido anterior (ej "W R32_2"), muestra el cruce real si ya está armado.
