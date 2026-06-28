@@ -1752,7 +1752,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
     return calcMatchScore(matchId, pred, result);
   }
 
-  const activeMatch = selectedMatch ? ALL_MATCHES.find(m=>m.id===selectedMatch) : null;
+  const activeMatch = selectedMatch ? applyFase2Override(ALL_MATCHES.find(m=>m.id===selectedMatch)||{}, fase2Overrides) : null;
 
   return (
     <div>
@@ -1861,7 +1861,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
               </div>
             </div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"60vh",overflowY:"auto",paddingRight:4}}>
             {participants.map(u=>{
               const pred=freshPreds[u.username] ?? predictions[u.username]?.[activeMatch.id];
               const pts=getScore(activeMatch.id, u.username);
