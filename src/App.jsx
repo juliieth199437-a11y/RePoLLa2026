@@ -1871,8 +1871,13 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
                   border:`1px solid ${pts===null?"var(--border)":pts>0?"var(--green)":res?"var(--red)":"var(--border)"}`}}>
                   <div className="avatar" style={{background:avatarColor(u.apodo||u.name),width:36,height:36,fontSize:15}}>{initials(u.apodo||u.name)}</div>
                   <div style={{flex:1,fontWeight:600,fontSize:15}}>{u.apodo||u.name}</div>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:pts===null?"#1B4F9E":pts>0?"var(--green)":res?"var(--red)":"#1B4F9E"}}>
-                    {pred?`${pred.homeGoals} - ${pred.awayGoals}`:<span style={{color:"#B0B8CC",fontSize:15,fontStyle:"italic"}}>Sin pronóstico</span>}
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:pts===null?"#1B4F9E":pts>0?"var(--green)":res?"var(--red)":"#1B4F9E"}}>
+                      {pred?`${pred.homeGoals} - ${pred.awayGoals}`:<span style={{color:"#B0B8CC",fontSize:15,fontStyle:"italic"}}>Sin pronóstico</span>}
+                    </div>
+                    {pred && activeMatch.fase===2 && pred.homeGoals!==null && pred.homeGoals===pred.awayGoals && pred.penaltyWinner && (
+                      <div style={{fontSize:12,color:"#6B7A99"}}>🥅 Penales: <span style={{fontWeight:700,color:"var(--blue)"}}>{pred.penaltyWinner}</span></div>
+                    )}
                   </div>
                   <div style={{minWidth:54,textAlign:"right"}}>
                     {pts!==null && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:pts>0?"var(--green)":"var(--red)"}}>{pts>0?`+${pts}`:0}<span style={{fontSize:13}}> pts</span></div>}
