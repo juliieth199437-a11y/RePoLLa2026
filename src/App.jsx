@@ -204,9 +204,9 @@ const KNOCKOUT_MATCHES = [
   {id:"R16_8",phase:"octavos",fase:2,label:"Octavos 8",home:"W R32_11",away:"W R32_15",date:"2026-07-07",time:"16:00",closeTime:"14:00",stadium:"BC Place",city:"VANCOUVER",country:"CANADÁ"},
   // ── CUARTOS (Jul 9 - Jul 11) ───────────────────────────────
   {id:"QF_1",phase:"cuartos",fase:2,label:"Cuartos 1",home:"W R16_1",away:"W R16_2",date:"2026-07-09",time:"16:00",closeTime:"14:00",stadium:"Gillette Stadium",city:"BOSTON",country:"EE.UU"},
-  {id:"QF_2",phase:"cuartos",fase:2,label:"Cuartos 2",home:"W R16_3",away:"W R16_4",date:"2026-07-09",time:"20:00",closeTime:"18:00",stadium:"BC Place",city:"VANCOUVER",country:"CANADÁ"},
-  {id:"QF_3",phase:"cuartos",fase:2,label:"Cuartos 3",home:"W R16_5",away:"W R16_6",date:"2026-07-10",time:"16:00",closeTime:"14:00",stadium:"SoFi Stadium",city:"LOS ÁNGELES",country:"EE.UU"},
-  {id:"QF_4",phase:"cuartos",fase:2,label:"Cuartos 4",home:"W R16_7",away:"W R16_8",date:"2026-07-11",time:"17:00",closeTime:"15:00",stadium:"Hard Rock Stadium",city:"MIAMI",country:"EE.UU"},
+  {id:"QF_2",phase:"cuartos",fase:2,label:"Cuartos 2",home:"W R16_3",away:"W R16_4",date:"2026-07-10",time:"15:00",closeTime:"13:00",stadium:"SoFi Stadium",city:"LOS ÁNGELES",country:"EE.UU"},
+  {id:"QF_3",phase:"cuartos",fase:2,label:"Cuartos 3",home:"W R16_5",away:"W R16_6",date:"2026-07-11",time:"17:00",closeTime:"15:00",stadium:"Hard Rock Stadium",city:"MIAMI",country:"EE.UU"},
+  {id:"QF_4",phase:"cuartos",fase:2,label:"Cuartos 4",home:"W R16_7",away:"W R16_8",date:"2026-07-11",time:"21:00",closeTime:"19:00",stadium:"Arrowhead Stadium",city:"KANSAS CITY",country:"EE.UU"},
   // ── SEMIFINALES (Jul 14 - Jul 15) ─────────────────────────
   {id:"SF_1",phase:"semis",fase:2,label:"Semifinal 1",home:"W QF_1",away:"W QF_2",date:"2026-07-14",time:"15:00",closeTime:"13:00",stadium:"AT&T Stadium",city:"DALLAS",country:"EE.UU"},
   {id:"SF_2",phase:"semis",fase:2,label:"Semifinal 2",home:"W QF_3",away:"W QF_4",date:"2026-07-15",time:"15:00",closeTime:"13:00",stadium:"Mercedes-Benz Stadium",city:"ATLANTA",country:"EE.UU"},
@@ -2908,7 +2908,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const JORNADA_MAP = {
     '2026-06-11': '2026-06-11', '2026-06-12': '2026-06-11',
     '2026-06-28': '2026-06-28', '2026-06-29': '2026-06-28', // un solo pick entre ambos días
-    '2026-07-09': '2026-07-09', '2026-07-10': '2026-07-09',
+    '2026-07-09': '2026-07-09', '2026-07-10': '2026-07-10',
   };
   const getJornadaKeyEarly = (d) => JORNADA_MAP[d] || d;
 
@@ -2984,8 +2984,9 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
     '2026-06-12': '2026-06-11', // Jornada 1 (mismo bloque)
     '2026-06-28': '2026-06-28', // Fase 2 — un solo pick entre 28 y 29
     '2026-06-29': '2026-06-28', // Fase 2 — mismo bloque que el 28
-    '2026-07-09': '2026-07-09', // Jornada 24
-    '2026-07-10': '2026-07-09', // Jornada 24 (mismo bloque)
+    '2026-07-09': '2026-07-09', // QF1 — jornada independiente
+    '2026-07-10': '2026-07-10', // QF2 — jornada independiente
+    '2026-07-11': '2026-07-11', // QF3 y QF4 — mismo bloque
   };
   // Partido 3er puesto NO cuenta para Survivor
   const EXCLUDED_SURVIVOR = ['2026-07-12'];
