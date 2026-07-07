@@ -9,14 +9,6 @@ const SUPABASE_URL = "https://uyaukplfojpuuzatolro.supabase.co";
 const SUPABASE_KEY = "sb_publishable_ilV0k_JMxliQU1RNCUbm2g_tGxNJueo";
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Guarda un key/value en la tabla config de forma segura.
-// La tabla config no tiene restricción UNIQUE, así que upsert con onConflict falla;
-// en su lugar borramos cualquier fila previa con ese key y luego insertamos.
-async function saveConfig(key, value) {
-  await sb.from("config").delete().eq("key", key);
-  return sb.from("config").insert({key, value});
-}
-
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
@@ -204,9 +196,9 @@ const KNOCKOUT_MATCHES = [
   {id:"R16_8",phase:"octavos",fase:2,label:"Octavos 8",home:"W R32_11",away:"W R32_15",date:"2026-07-07",time:"16:00",closeTime:"14:00",stadium:"BC Place",city:"VANCOUVER",country:"CANADÁ"},
   // ── CUARTOS (Jul 9 - Jul 11) ───────────────────────────────
   {id:"QF_1",phase:"cuartos",fase:2,label:"Cuartos 1",home:"W R16_1",away:"W R16_2",date:"2026-07-09",time:"16:00",closeTime:"14:00",stadium:"Gillette Stadium",city:"BOSTON",country:"EE.UU"},
-  {id:"QF_2",phase:"cuartos",fase:2,label:"Cuartos 2",home:"W R16_3",away:"W R16_4",date:"2026-07-10",time:"15:00",closeTime:"13:00",stadium:"SoFi Stadium",city:"LOS ÁNGELES",country:"EE.UU"},
-  {id:"QF_3",phase:"cuartos",fase:2,label:"Cuartos 3",home:"W R16_5",away:"W R16_6",date:"2026-07-11",time:"17:00",closeTime:"15:00",stadium:"Hard Rock Stadium",city:"MIAMI",country:"EE.UU"},
-  {id:"QF_4",phase:"cuartos",fase:2,label:"Cuartos 4",home:"W R16_7",away:"W R16_8",date:"2026-07-11",time:"21:00",closeTime:"19:00",stadium:"Arrowhead Stadium",city:"KANSAS CITY",country:"EE.UU"},
+  {id:"QF_2",phase:"cuartos",fase:2,label:"Cuartos 2",home:"W R16_3",away:"W R16_4",date:"2026-07-09",time:"20:00",closeTime:"18:00",stadium:"BC Place",city:"VANCOUVER",country:"CANADÁ"},
+  {id:"QF_3",phase:"cuartos",fase:2,label:"Cuartos 3",home:"W R16_5",away:"W R16_6",date:"2026-07-10",time:"16:00",closeTime:"14:00",stadium:"SoFi Stadium",city:"LOS ÁNGELES",country:"EE.UU"},
+  {id:"QF_4",phase:"cuartos",fase:2,label:"Cuartos 4",home:"W R16_7",away:"W R16_8",date:"2026-07-11",time:"17:00",closeTime:"15:00",stadium:"Hard Rock Stadium",city:"MIAMI",country:"EE.UU"},
   // ── SEMIFINALES (Jul 14 - Jul 15) ─────────────────────────
   {id:"SF_1",phase:"semis",fase:2,label:"Semifinal 1",home:"W QF_1",away:"W QF_2",date:"2026-07-14",time:"15:00",closeTime:"13:00",stadium:"AT&T Stadium",city:"DALLAS",country:"EE.UU"},
   {id:"SF_2",phase:"semis",fase:2,label:"Semifinal 2",home:"W QF_3",away:"W QF_4",date:"2026-07-15",time:"15:00",closeTime:"13:00",stadium:"Mercedes-Benz Stadium",city:"ATLANTA",country:"EE.UU"},
@@ -216,17 +208,6 @@ const KNOCKOUT_MATCHES = [
 
 const ALL_MATCHES = [...GROUP_MATCHES, ...KNOCKOUT_MATCHES];
 
-// Lista oficial de los 48 equipos del Mundial 2026 (para selectores de Fase 2)
-const ALL_TEAMS = [...new Set(GROUP_MATCHES.flatMap(m => [m.home, m.away]))].sort();
-
-// Aplica el nombre real de equipo a un partido de Dieciseisavos si ya fue asignado por el admin.
-// fase2Overrides: { R32_1: {home:"México", away:"Brasil"}, ... }
-function applyFase2Override(match, fase2Overrides={}) {
-  const ov = fase2Overrides[match.id];
-  if (!ov) return match;
-  return {...match, home: ov.home, away: ov.away, label: `${ov.home} vs ${ov.away}`};
-}
-
 // Today's date helper
 
 const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); };
@@ -234,14 +215,11 @@ const tomorrowStr = function() { var d = new Date(); d.setDate(d.getDate()+1); r
 
 // Is match open for predictions? Closes at 10PM Colombia the day before the match.
 // Exception: matches on 2026-06-11 and 2026-06-12 close on 2026-06-11 at 11PM Colombia.
-// openedDates: fechas que el admin forzó a ABIERTO manualmente (anula el cierre automático)
-// blockedDates: fechas que el admin forzó a CERRADO manualmente (anula todo lo demás)
-function isMatchOpen(match, blockedDates=[], openedDates=[]) {
+// blockedDates: array de fechas bloqueadas manualmente por el admin
+function isMatchOpen(match, blockedDates=[]) {
   if (!match.date) return true;
-  // Bloqueo manual tiene prioridad absoluta
+  // Bloqueo manual por fecha
   if (blockedDates.includes(match.date)) return false;
-  // Apertura manual anula el cierre automático
-  if (openedDates.includes(match.date)) return true;
   // Excepción jornada 1: partidos del 11 y 12 jun cierran el 11 jun a las 11PM
   if (match.date === "2026-06-11" || match.date === "2026-06-12") {
     return new Date() < new Date("2026-06-11T23:00:00-05:00");
@@ -291,7 +269,7 @@ function arePredictionsVisible(match, blockedDates=[]) {
 // ============================================================
 // SCORING — Reglas actualizadas
 // Fase 1 Grupos: 3pts marcador exacto + 1pt ganador/empate acertado
-// Fase 2 Eliminatorias: 3pts marcador exacto (90min) O 1pt solo ganador (no acumulan) + 1pt extra si empate exacto y acierta penales (máx 4pts)
+// Fase 2 Eliminatorias: 3pts marcador exacto (90min) + 1pt extra si empate y acierta ganador penales
 // Fase 3 Campeón: 12/9/7/5 pts
 // Tabla B Grupos: 2pts por 1° y 2° en orden exacto
 // ============================================================
@@ -317,15 +295,13 @@ function calcMatchScore(matchId, pred, result) {
       pts = 1;
     }
   } else {
-    // Fase Eliminatorias: 3pts marcador exacto (90min) O 1pt solo ganador (no acumulan)
-    // +1 extra SOLO si el marcador exacto fue empate Y acierta ganador en penales (máximo 4pts)
-    if (ph===rh && pa===ra) {
-      pts = 3;
-      if (ph===pa && pred.penaltyWinner && result.penaltyWinner && pred.penaltyWinner===result.penaltyWinner) {
-        pts += 1;
-      }
-    } else if (predResult === realResult) {
-      pts = 1;
+    // Fase Eliminatorias: 3pts marcador exacto (90min) + 1pt ganador + 1pt extra empate+penales
+    if (ph===rh && pa===ra) pts += 3;
+    // 1pt por acertar ganador (incluso sin acertar marcador exacto)
+    if (predResult === realResult) pts += 1;
+    // +1 extra si pronosticó empate exacto Y acierta ganador en penales
+    if (ph===pa && pa===ra && ph===rh && pred.penaltyWinner && result.penaltyWinner && pred.penaltyWinner===result.penaltyWinner) {
+      pts += 1;
     }
   }
   return pts;
@@ -419,43 +395,12 @@ export default function App() {
       }
     } catch(e) { console.error("Error recargando predictions:", e); }
   }
-  // Recargar group_picks completos (evita el límite de 1000 filas de Supabase: 85 jugadores x 12 grupos puede superar 1000)
-  async function reloadAllGroupPicks() {
-    try {
-      const allPicks = [];
-      let from = 0;
-      const pageSize = 1000;
-      while (true) {
-        const { data: batch } = await sb.from("group_picks").select("*").range(from, from + pageSize - 1);
-        if (!batch || batch.length === 0) break;
-        allPicks.push(...batch);
-        if (batch.length < pageSize) break;
-        from += pageSize;
-      }
-      if (allPicks.length > 0) {
-        const mapped = {};
-        allPicks.forEach(p => {
-          if (!mapped[p.username]) mapped[p.username] = {};
-          mapped[p.username][p.group_key] = {first: p.first, second: p.second};
-        });
-        setGroupPicks(mapped);
-      }
-    } catch(e) { console.error("Error recargando group_picks:", e); }
-  }
   const [survivorTestDate, setSurvivorTestDate] = useState("2026-06-13");
   // Controles de bloqueo manual (admin)
-  const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 forzadas CERRADAS
-  const [openedDates, setOpenedDates] = useState([]); // fechas de Fase1 forzadas ABIERTAS (anula cierre automático)
+  const [blockedDates, setBlockedDates] = useState([]); // fechas de Fase1 bloqueadas
   const [clasifBlocked, setClasifBlocked] = useState(false); // Clasificación bloqueada
   const [fase3Blocked, setFase3Blocked] = useState(false); // Fase3 bloqueada
-  const [survivorBlockedDates, setSurvivorBlockedDates] = useState([]);
-  const [survivorActiveJornadas, setSurvivorActiveJornadas] = useState([]); // Jornadas Survivor habilitadas explícitamente // Jornadas Survivor bloqueadas (array de jornadaKeys)
-  // Equipos reales asignados a cada partido de Dieciseisavos (Fase 2), una vez se conocen los clasificados
-  // Formato: { R32_1: {home:"México", away:"Brasil"}, ... }
-  const [fase2Overrides, setFase2Overrides] = useState({});
-  // Pantalla de celebración final
-  const [torneoFinalizado, setTorneoFinalizado] = useState(false);
-  const [ganadorSurvivor, setGanadorSurvivor] = useState(""); // username del ganador Survivor
+  const [survivorBlockedDates, setSurvivorBlockedDates] = useState([]); // Jornadas Survivor bloqueadas (array de jornadaKeys)
 
   // testMode eliminado — modo producción real
 
@@ -591,19 +536,11 @@ export default function App() {
           await sb.from("users").upsert(toInsert, {onConflict:"username"});
         }
 
-        // Predicciones (paginado para evitar el límite de 1000 filas de Supabase)
-        const allPredsInit = [];
-        let predFrom = 0;
-        while (true) {
-          const { data: predBatch } = await sb.from("predictions").select("*").range(predFrom, predFrom + 999);
-          if (!predBatch || predBatch.length === 0) break;
-          allPredsInit.push(...predBatch);
-          if (predBatch.length < 1000) break;
-          predFrom += 1000;
-        }
-        if (allPredsInit.length > 0) {
+        // Predicciones — cargar solo del usuario actual primero, luego el resto
+        const { data: preds } = await sb.from("predictions").select("*");
+        if (preds) {
           const mapped = {};
-          allPredsInit.forEach(p => {
+          preds.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
             // Guardar homeGoals como número (no string) para que alreadySaved funcione bien
             mapped[p.username][p.match_id] = {
@@ -615,19 +552,11 @@ export default function App() {
           setPredictions(mapped);
         }
 
-        // Group picks (paginado para evitar el límite de 1000 filas de Supabase)
-        const allGp = [];
-        let gpFrom = 0;
-        while (true) {
-          const { data: gpBatch } = await sb.from("group_picks").select("*").range(gpFrom, gpFrom + 999);
-          if (!gpBatch || gpBatch.length === 0) break;
-          allGp.push(...gpBatch);
-          if (gpBatch.length < 1000) break;
-          gpFrom += 1000;
-        }
-        if (allGp.length > 0) {
+        // Group picks
+        const { data: gp } = await sb.from("group_picks").select("*");
+        if (gp) {
           const mapped = {};
-          allGp.forEach(p => {
+          gp.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
             mapped[p.username][p.group_key] = {first: p.first, second: p.second};
           });
@@ -689,19 +618,11 @@ export default function App() {
           setBolsa({valorBase: 50000, pagos: pagosMap});
         }
 
-        // Survivor picks (paginado por la misma razón: puede crecer mucho durante el torneo)
-        const allSp = [];
-        let spFrom = 0;
-        while (true) {
-          const { data: spBatch } = await sb.from("survivor_picks").select("*").range(spFrom, spFrom + 999);
-          if (!spBatch || spBatch.length === 0) break;
-          allSp.push(...spBatch);
-          if (spBatch.length < 1000) break;
-          spFrom += 1000;
-        }
-        if (allSp.length > 0) {
+        // Survivor picks
+        const { data: sp } = await sb.from("survivor_picks").select("*");
+        if (sp) {
           const mapped = {};
-          allSp.forEach(p => {
+          sp.forEach(p => {
             if (!mapped[p.username]) mapped[p.username] = {};
             mapped[p.username][p.date] = { team: p.team, failed: p.failed, result: p.result };
           });
@@ -712,32 +633,14 @@ export default function App() {
 
         // Cargar controles de bloqueo manual
         try {
-          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas","torneoFinalizado","ganadorSurvivor"]);
+          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
           if (cfgAll) {
             cfgAll.forEach(c => {
               if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
-              if (c.key==="openedDates") setOpenedDates(c.value ? c.value.split(",").filter(Boolean) : []);
               if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
               if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
               if (c.key==="survivorBlockedDates") setSurvivorBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
-              if (c.key==="survivorActiveJornadas") setSurvivorActiveJornadas(c.value ? c.value.split(",").filter(Boolean) : []);
-              if (c.key==="torneoFinalizado") setTorneoFinalizado(c.value==="true");
-              if (c.key==="ganadorSurvivor") setGanadorSurvivor(c.value||"");
             });
-          }
-        } catch(e) {}
-
-        // Cargar overrides de Fase 2 (equipos reales de Dieciseisavos)
-        try {
-          const { data: f2cfg } = await sb.from("config").select("*").like("key","fase2_%");
-          if (f2cfg) {
-            const overrides = {};
-            f2cfg.forEach(c => {
-              const matchId = c.key.replace("fase2_","");
-              const [home, away] = (c.value || "").split("|");
-              if (home && away) overrides[matchId] = {home, away};
-            });
-            setFase2Overrides(overrides);
           }
         } catch(e) {}
 
@@ -757,30 +660,14 @@ export default function App() {
     // Polling cada 30s para que jugadores vean cambios de bloqueo del admin
     const pollInterval = setInterval(async () => {
       try {
-        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas","torneoFinalizado","ganadorSurvivor"]);
+        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","clasifBlocked","fase3Blocked","survivorBlockedDates"]);
         if (cfgPoll) {
           cfgPoll.forEach(c => {
             if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
-            if (c.key==="openedDates") setOpenedDates(c.value ? c.value.split(",").filter(Boolean) : []);
             if (c.key==="clasifBlocked") setClasifBlocked(c.value==="true");
             if (c.key==="fase3Blocked") setFase3Blocked(c.value==="true");
             if (c.key==="survivorBlockedDates") setSurvivorBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
-            if (c.key==="torneoFinalizado") setTorneoFinalizado(c.value==="true");
-            if (c.key==="ganadorSurvivor") setGanadorSurvivor(c.value||"");
           });
-        }
-      } catch(e) {}
-      // Polling de overrides Fase 2
-      try {
-        const { data: f2poll } = await sb.from("config").select("*").like("key","fase2_%");
-        if (f2poll) {
-          const overrides = {};
-          f2poll.forEach(c => {
-            const matchId = c.key.replace("fase2_","");
-            const [home, away] = (c.value || "").split("|");
-            if (home && away) overrides[matchId] = {home, away};
-          });
-          setFase2Overrides(overrides);
         }
       } catch(e) {}
     }, 30000);
@@ -1003,7 +890,6 @@ export default function App() {
 
   const navItems = currentUser.isAdmin ? [
     {key:"admin", label:"⚙️ Admin"},
-    {key:"armarfase2", label:"🏆 Armar Fase 2"},
     {key:"ranking", label:"🏆 Ranking"},
     {key:"pronosticos", label:"👁️ Ver Pronósticos"},
     {key:"survivor", label:"🔥 Survivor"},
@@ -1042,102 +928,31 @@ export default function App() {
         {navItems.map(i=>(
           <button key={i.key} className={`nav-btn ${tab===i.key?"active":""}`} onClick={()=>{
             setTab(i.key);
-            if (i.key==="ranking" || i.key==="pronosticos") { reloadAllPredictions(); reloadAllGroupPicks(); }
+            if (i.key==="ranking" || i.key==="pronosticos") reloadAllPredictions();
           }}>{i.label}</button>
         ))}
       </nav>
       <div className="content">
-        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
-        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
-        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} survivorBlockedDates={survivorBlockedDates} setSurvivorBlockedDates={setSurvivorBlockedDates} survivorActiveJornadas={survivorActiveJornadas} setSurvivorActiveJornadas={setSurvivorActiveJornadas} fase2Overrides={fase2Overrides} />}
-        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} openedDates={openedDates} clasifBlocked={clasifBlocked} />}
-        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} openedDates={openedDates} fase2Overrides={fase2Overrides} />}
+        {tab==="hoy" && <HoyTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
+        {tab==="manana" && <MananaTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
+        {tab==="survivor" && <SurvivorTab currentUser={currentUser} users={users} survivorPicks={survivorPicks} setSurvivorPicks={setSurvivorPicks} survivorTestDate={survivorTestDate} setSurvivorTestDate={setSurvivorTestDate} survivorBlockedDates={survivorBlockedDates} setSurvivorBlockedDates={setSurvivorBlockedDates} />}
+        {tab==="fase1" && <Fase1Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} groupPicks={groupPicks[currentUser.username]||{}} groupResults={groupResults} savePrediction={savePrediction} saveGroupPick={saveGroupPick} blockedDates={blockedDates} clasifBlocked={clasifBlocked} />}
+        {tab==="fase2" && <Fase2Tab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} results={results} savePrediction={savePrediction} blockedDates={blockedDates} />}
         {tab==="fase3" && <Fase3Tab key={resetKey} currentUser={currentUser} finalPicks={finalPicks[currentUser.username]||{}} finalResults={finalResults} saveFinalPick={saveFinalPick} fase3Blocked={fase3Blocked} />}
-        {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} fase2Overrides={fase2Overrides} />}
-        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} fase2Overrides={fase2Overrides} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
+        {tab==="ranking" && <RankingTab key={resetKey} leaderboard={leaderboard} currentUser={currentUser} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} results={results} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} clasifBlocked={clasifBlocked} fase3Blocked={fase3Blocked} />}
+        {tab==="pronosticos" && <VerPronosticosTab currentUser={currentUser} users={users} predictions={predictions} results={results} groupPicks={groupPicks} finalPicks={finalPicks} groupResults={groupResults} finalResults={finalResults} blockedDates={blockedDates} />}
         {tab==="mispuntos" && <MisPuntosTab key={resetKey} currentUser={currentUser} predictions={predictions[currentUser.username]||{}} groupPicks={groupPicks[currentUser.username]||{}} finalPicks={finalPicks[currentUser.username]||{}} results={results} groupResults={groupResults} finalResults={finalResults} />}
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} openedDates={openedDates} setOpenedDates={setOpenedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} torneoFinalizado={torneoFinalizado} setTorneoFinalizado={setTorneoFinalizado} ganadorSurvivor={ganadorSurvivor} setGanadorSurvivor={setGanadorSurvivor} />}
-        {tab==="armarfase2" && currentUser.isAdmin && <ArmarFase2Tab fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} />}
       </div>
-      {/* ══ CELEBRACIÓN FINAL — solo para jugadores (no admin), cuando el torneo termina ══ */}
-      {torneoFinalizado && !currentUser.isAdmin && (() => {
-        const myRank = leaderboard.findIndex(u => u.username === currentUser.username) + 1;
-        const survivorWinner = users.find(u => u.username === ganadorSurvivor);
-        const isSurvivorWinner = ganadorSurvivor && ganadorSurvivor === currentUser.username;
-        const medals = {1:"🥇",2:"🥈",3:"🥉"};
-        const colors = {1:"#FFD700",2:"#C0C0C0",3:"#CD7F32"};
-        const messages = {
-          1: "¡Campeón de la RePoLLa 2026! 🏆",
-          2: "¡Subcampeón de la RePoLLa! 🎉",
-          3: "¡Tercer lugar de la RePoLLa! 🎊",
-        };
-        return (
-          <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",
-            background:"rgba(10,15,35,0.97)",overflow:"hidden",padding:"20px"}}>
-            {/* Confetti animado */}
-            {myRank===1 && [...Array(40)].map((_,i)=>(
-              <div key={i} style={{position:"absolute",width:10,height:10,borderRadius:"2px",
-                background:["#FFD700","#FF6B35","#4ECDC4","#45B7D1","#96CEB4","#FFEAA7","#DDA0DD","#98D8C8"][i%8],
-                left:`${(i*7+5)%100}%`,top:`${-10-Math.random()*20}%`,
-                animation:`fall ${2+Math.random()*3}s linear ${Math.random()*2}s infinite`,
-                transform:`rotate(${Math.random()*360}deg)`}} />
-            ))}
-            <style>{`
-              @keyframes fall { 0%{transform:translateY(-50px) rotate(0deg);opacity:1} 100%{transform:translateY(110vh) rotate(720deg);opacity:0} }
-              @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
-              @keyframes shine { 0%{opacity:.6} 50%{opacity:1} 100%{opacity:.6} }
-            `}</style>
-            <div style={{textAlign:"center",maxWidth:480,width:"100%"}}>
-              {myRank <= 3 ? (
-                <>
-                  <div style={{fontSize:90,animation:"pulse 1.5s ease-in-out infinite",marginBottom:8}}>{medals[myRank]}</div>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:42,color:colors[myRank],
-                    textShadow:`0 0 30px ${colors[myRank]}`,animation:"shine 2s ease-in-out infinite",marginBottom:8}}>
-                    {messages[myRank]}
-                  </div>
-                  <div style={{fontSize:20,color:"#fff",fontWeight:700,marginBottom:4}}>
-                    {currentUser.apodo || currentUser.name}
-                  </div>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:colors[myRank],marginBottom:20}}>
-                    {myRank}° lugar · {leaderboard[myRank-1]?.pts || 0} pts
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{fontSize:70,marginBottom:12}}>⚽</div>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:36,color:"#4ECDC4",marginBottom:8}}>
-                    ¡Gracias por jugar, {currentUser.apodo || currentUser.name}!
-                  </div>
-                  <div style={{fontSize:16,color:"#B0B8CC",marginBottom:4}}>Terminaste en el puesto {myRank}</div>
-                  <div style={{fontSize:15,color:"#6B7A99",marginBottom:20}}>Nos vemos en el próximo Mundial 🌍</div>
-                </>
-              )}
-              {/* Ganador Survivor */}
-              {ganadorSurvivor && (
-                <div style={{background:"linear-gradient(135deg,#FF6B35,#FFD700)",borderRadius:16,padding:"14px 20px",marginBottom:20,
-                  boxShadow:"0 0 30px rgba(255,107,53,0.5)"}}>
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1A1A2E",marginBottom:2}}>
-                    🔥 GANADOR SURVIVOR 🔥
-                  </div>
-                  <div style={{fontSize:18,color:"#1A1A2E",fontWeight:700}}>
-                    {isSurvivorWinner ? "¡ERES TÚ! 🎉" : (survivorWinner?.apodo || survivorWinner?.name || ganadorSurvivor)}
-                  </div>
-                </div>
-              )}
-              <button onClick={()=>setTorneoFinalizado(false)} style={{padding:"12px 32px",background:"rgba(255,255,255,0.15)",
-                border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:12,fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>
-                Ver ranking completo
-              </button>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }
+
+// ============================================================
+// LOGIN
 // ============================================================
 function LoginScreen({login}) {
   const [username,setUsername]=useState("");
@@ -1169,13 +984,12 @@ function LoginScreen({login}) {
 // ============================================================
 // HOY TAB — only today's matches
 // ============================================================
-function HoyTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[], fase2Overrides={}}) {
+function HoyTab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   // Antes del inicio del Mundial: anclar al 11 jun para que la gente pueda enviar pronósticos
   const MUNDIAL_START = "2026-06-11";
   const today = realToday < MUNDIAL_START ? MUNDIAL_START : realToday;
-  const todayMatches = ALL_MATCHES.filter(m => m.date === today && m.fase <= 2)
-    .map(m => applyFase2Override(m, fase2Overrides));
+  const todayMatches = ALL_MATCHES.filter(m => m.date === today && m.fase <= 2);
   const isAnchored = realToday < MUNDIAL_START;
 
   return (
@@ -1192,7 +1006,7 @@ function HoyTab({currentUser, predictions, results, savePrediction, blockedDates
         </div>
       ) : (
         <MatchList matches={todayMatches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       )}
     </div>
   );
@@ -1201,7 +1015,7 @@ function HoyTab({currentUser, predictions, results, savePrediction, blockedDates
 // ============================================================
 // FASE 1 TAB
 // ============================================================
-function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick, blockedDates=[], openedDates=[], clasifBlocked=false}) {
+function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, savePrediction, saveGroupPick, blockedDates=[], clasifBlocked=false}) {
   const [section, setSection] = useState("partidos");
   const matches = GROUP_MATCHES; // Todos los partidos visibles siempre
 
@@ -1214,7 +1028,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
       </div>
       {section==="partidos" && (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       )}
       {section==="grupos" && (
         <GroupPicksSection groupPicks={groupPicks} groupResults={groupResults} saveGroupPick={saveGroupPick} clasifBlocked={clasifBlocked} />
@@ -1226,7 +1040,7 @@ function Fase1Tab({currentUser, predictions, results, groupPicks, groupResults, 
 // ============================================================
 // FASE 2 TAB
 // ============================================================
-function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[], fase2Overrides={}}) {
+function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
   const [sub, setSub] = useState("dieciseisavos");
   const subPhases = [
     {key:"dieciseisavos", label:"Dieciseisavos"},
@@ -1236,12 +1050,11 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDat
     {key:"tercer", label:"3er y 4to Puesto"},
     {key:"final", label:"Gran Final"},
   ];
-  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub)
-    .map(m => applyFase2Override(m, fase2Overrides)); // Todos visibles siempre
+  const matches = KNOCKOUT_MATCHES.filter(m => m.phase===sub); // Todos visibles siempre
 
   return (
     <div>
-      <div className="phase-banner f2">⚡ Fase 2 · Eliminatorias — 3pts marcador exacto (o 1pt solo ganador) · +1pt extra si acierta empate exacto y ganador en penales (máx. 4pts)</div>
+      <div className="phase-banner f2">⚡ Fase 2 · Eliminatorias — 3pts marcador · 1pt ganador · +1pt extra: empate exacto + acierta penales</div>
       <div className="phase-tabs">
         {subPhases.map(p=>(
           <button key={p.key} className={`phase-tab ${sub===p.key?"active":""}`} onClick={()=>setSub(p.key)}>{p.label}</button>
@@ -1253,7 +1066,7 @@ function Fase2Tab({currentUser, predictions, results, savePrediction, blockedDat
             <div>Esta fase aún no ha comenzado</div>
           </div>
         : <MatchList matches={matches} predictions={predictions} results={results}
-            savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
+            savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       }
     </div>
   );
@@ -1319,7 +1132,7 @@ function Fase3Tab({currentUser, finalPicks, finalResults, saveFinalPick, fase3Bl
 // ============================================================
 // MATCH LIST — shared component
 // ============================================================
-function MatchList({matches, predictions, results, savePrediction, allPredictions, showScores, blockedDates=[], openedDates=[]}) {
+function MatchList({matches, predictions, results, savePrediction, allPredictions, showScores, blockedDates=[]}) {
   const [local, setLocal] = useState({});
   const [saved, setSaved] = useState({});
   const [confirming, setConfirming] = useState(null);
@@ -1337,12 +1150,6 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
   }
 
   function handleChange(matchId, field, value) {
-    // El ganador de penales es un nombre de equipo (texto), no debe pasar por el filtro numérico
-    if (field === "penaltyWinner") {
-      setLocal(p=>({...p,[matchId]:{...getPred(matchId),[field]:value}}));
-      setInputError(p=>({...p,[matchId]:""}));
-      return;
-    }
     const clean = value.replace(/[^0-9]/g, "");
     // Mantener "" si está vacío, o número entero si tiene valor
     const num = clean === "" ? "" : Math.max(0, parseInt(clean, 10));
@@ -1354,13 +1161,6 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
     const p = getPred(matchId);
     if (p.homeGoals === "" || p.homeGoals == null || p.awayGoals === "" || p.awayGoals == null) {
       setInputError(prev=>({...prev,[matchId]:"⚠️ Debes ingresar el marcador de ambos equipos (puedes poner 0)."}));
-      return;
-    }
-    const match = matches.find(m=>m.id===matchId);
-    const isDrawNow = parseInt(p.homeGoals)===parseInt(p.awayGoals);
-    const isKONow = match && match.fase===2;
-    if (isKONow && isDrawNow && !p.penaltyWinner) {
-      setInputError(prev=>({...prev,[matchId]:"⚠️ Pronosticaste un empate: debes elegir el ganador en penales antes de guardar."}));
       return;
     }
     setConfirming(matchId);
@@ -1381,7 +1181,7 @@ function MatchList({matches, predictions, results, savePrediction, allPrediction
       {matches.map(match=>{
         const pred = getPred(match.id);
         const result = results[match.id];
-        const open = isMatchOpen(match, blockedDates, openedDates);
+        const open = isMatchOpen(match, blockedDates);
         const pred_saved = predictions[match.id]; const alreadySaved = !!(pred_saved && pred_saved.homeGoals != null && pred_saved.homeGoals !== '' && pred_saved.awayGoals != null && pred_saved.awayGoals !== '');
         const locked = !open || alreadySaved || !!result;
         const hasPred = pred.homeGoals!=null && pred.homeGoals!=="" && pred.awayGoals!=null && pred.awayGoals!=="";
@@ -1545,7 +1345,7 @@ function GroupPicksSection({groupPicks, groupResults, saveGroupPick, clasifBlock
 // ============================================================
 // RANKING TAB
 // ============================================================
-function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults, blockedDates=[], clasifBlocked=false, fase3Blocked=false, fase2Overrides={}}) {
+function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPicks, results, groupResults, finalResults, blockedDates=[], clasifBlocked=false, fase3Blocked=false}) {
   const [selected, setSelected] = React.useState(null);
   const [rankTab, setRankTab] = React.useState("fase1");
   const me = leaderboard.find(u=>u.username===currentUser.username);
@@ -1557,7 +1357,7 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
     const gPicks = groupPicks[selected]||{};
     const fPicks = finalPicks[selected]||{};
     const fase1Matches = GROUP_MATCHES.filter(m => preds[m.id]);
-    const fase2Matches = KNOCKOUT_MATCHES.filter(m => preds[m.id]).map(m => applyFase2Override(m, fase2Overrides));
+    const fase2Matches = KNOCKOUT_MATCHES.filter(m => preds[m.id]);
     return (
       <div>
         <button onClick={()=>{setSelected(null);setRankTab("fase1");}} style={{marginBottom:14,padding:"7px 14px",borderRadius:8,border:"1px solid var(--border)",background:"transparent",color:"var(--text)",cursor:"pointer",fontFamily:"inherit",fontSize:14}}>
@@ -1716,12 +1516,10 @@ function RankingTab({leaderboard, currentUser, predictions, groupPicks, finalPic
 // ============================================================
 // VER PRONÓSTICOS TAB — partido-centric, solo visible tras cierre
 // ============================================================
-function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, blockedDates=[], fase2Overrides={}, clasifBlocked=false, fase3Blocked=false}) {
+function VerPronosticosTab({currentUser, users, predictions, results, groupPicks, finalPicks, groupResults, finalResults, blockedDates=[]}) {
   const [freshPreds, setFreshPreds] = useState({});
-  const [viewCategory, setViewCategory] = useState("partidos");
   const [phase, setPhase]=useState("grupos");
   const [selectedMatch, setSelectedMatch]=useState(null);
-  const [fechaFiltroVer, setFechaFiltroVer]=useState("");
   const participants=users.filter(u=>!u.isAdmin && !u.isDemo);
   const subPhases=[
     {key:"grupos",label:"Grupos",fase:1},
@@ -1745,8 +1543,8 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
         const pred = preds[m.id];
         if (!pred) return;
         const res = results[m.id];
-        // Solo exportar si el partido ya está visible (misma regla que la pantalla, sin excepción de admin)
-        if (!arePredictionsVisible(m, blockedDates)) return;
+        // Jugadores: solo exportar si el partido ya cerró (pronóstico visible)
+        if (!currentUser.isAdmin && !arePredictionsVisible(m, blockedDates)) return;
         let acertoMarcador = "", acertoGanador = "", pts = "";
         if (res) {
           acertoMarcador = (pred.homeGoals===res.homeGoals && pred.awayGoals===res.awayGoals) ? "SÍ" : "NO";
@@ -1773,8 +1571,6 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
       const picks = groupPicks[u.username] || {};
       Object.entries(picks).forEach(([group, pick]) => {
         const res = groupResults[group];
-        // Jugadores: solo exportar si esa tabla ya está habilitada para verse (igual que en Ranking)
-        if (!res && !clasifBlocked) return;
         let pts = "";
         if (res) {
           if (pick.first===res.first && pick.second===res.second) pts=4;
@@ -1793,8 +1589,6 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
     participants.forEach(u => {
       const fp = finalPicks[u.username];
       if (!fp || !fp.champion) return;
-      // Jugadores: solo exportar si el podio ya está habilitado para verse (igual que en Ranking)
-      if (!finalResults?.champion && !fase3Blocked) return;
       rows.push([u.name, u.apodo||u.name, fp.champion, fp.runnerUp||"", fp.third||"", fp.fourth||"", ""]);
     });
 
@@ -1808,15 +1602,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
     a.click();
     URL.revokeObjectURL(url);
   }
-  const matches = ALL_MATCHES.filter(m=>m.phase===phase)
-    .filter(m => phase!=="grupos" || !fechaFiltroVer || m.date===fechaFiltroVer)
-    .map(m => applyFase2Override(m, fase2Overrides))
-    .sort((a,b) => {
-      // Ordenar cronológicamente por fecha y hora
-      const da = a.date + "T" + (a.time||"00:00");
-      const db = b.date + "T" + (b.time||"00:00");
-      return da.localeCompare(db);
-    });
+  const matches = ALL_MATCHES.filter(m=>m.phase===phase); // Todos visibles
 
   function getScore(matchId, username) {
     // Usar freshPreds si están disponibles (datos frescos de Supabase para este partido)
@@ -1829,7 +1615,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
     return calcMatchScore(matchId, pred, result);
   }
 
-  const activeMatch = selectedMatch ? applyFase2Override(ALL_MATCHES.find(m=>m.id===selectedMatch)||{}, fase2Overrides) : null;
+  const activeMatch = selectedMatch ? ALL_MATCHES.find(m=>m.id===selectedMatch) : null;
 
   return (
     <div>
@@ -1843,34 +1629,11 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
 
       </div>
       <div className="phase-tabs">
-        <button className={`phase-tab ${viewCategory==="partidos"?"active":""}`}
-          onClick={()=>{setViewCategory("partidos");setSelectedMatch(null);}}>⚽ Partidos</button>
-        <button className={`phase-tab ${viewCategory==="tablab"?"active":""}`}
-          onClick={()=>{setViewCategory("tablab");setSelectedMatch(null);}}>📊 Tabla B</button>
-        <button className={`phase-tab ${viewCategory==="fase3"?"active":""}`}
-          onClick={()=>{setViewCategory("fase3");setSelectedMatch(null);}}>🏆 Fase 3</button>
-      </div>
-
-      {viewCategory==="partidos" && <>
-      <div className="phase-tabs">
         {subPhases.map(p=>(
           <button key={p.key} className={`phase-tab ${phase===p.key?"active":""}`}
-            onClick={()=>{setPhase(p.key);setSelectedMatch(null);setFechaFiltroVer("");}}>{p.label}</button>
+            onClick={()=>{setPhase(p.key);setSelectedMatch(null);}}>{p.label}</button>
         ))}
       </div>
-
-      {phase==="grupos" && (
-        <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-          <button onClick={()=>setFechaFiltroVer("")} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
-            background:fechaFiltroVer===""?"#1B4F9E":"transparent",borderColor:fechaFiltroVer===""?"#1B4F9E":"var(--border)",
-            color:fechaFiltroVer===""?"#fff":"var(--text)"}}>Todas</button>
-          {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(f=>(
-            <button key={f} onClick={()=>setFechaFiltroVer(f)} style={{padding:"6px 12px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
-              background:fechaFiltroVer===f?"#1B4F9E":"transparent",borderColor:fechaFiltroVer===f?"#1B4F9E":"var(--border)",
-              color:fechaFiltroVer===f?"#fff":"var(--text)"}}>{f.slice(5)}</button>
-          ))}
-        </div>
-      )}
 
       {!selectedMatch && (
         <div className="matches-grid">
@@ -1938,7 +1701,7 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
               </div>
             </div>
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8,maxHeight:"60vh",overflowY:"auto",paddingRight:4}}>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {participants.map(u=>{
               const pred=freshPreds[u.username] ?? predictions[u.username]?.[activeMatch.id];
               const pts=getScore(activeMatch.id, u.username);
@@ -1948,13 +1711,8 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
                   border:`1px solid ${pts===null?"var(--border)":pts>0?"var(--green)":res?"var(--red)":"var(--border)"}`}}>
                   <div className="avatar" style={{background:avatarColor(u.apodo||u.name),width:36,height:36,fontSize:15}}>{initials(u.apodo||u.name)}</div>
                   <div style={{flex:1,fontWeight:600,fontSize:15}}>{u.apodo||u.name}</div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:pts===null?"#1B4F9E":pts>0?"var(--green)":res?"var(--red)":"#1B4F9E"}}>
-                      {pred?`${pred.homeGoals} - ${pred.awayGoals}`:<span style={{color:"#B0B8CC",fontSize:15,fontStyle:"italic"}}>Sin pronóstico</span>}
-                    </div>
-                    {pred && activeMatch.fase===2 && pred.homeGoals!==null && pred.homeGoals===pred.awayGoals && pred.penaltyWinner && (
-                      <div style={{fontSize:12,color:"#6B7A99"}}>🥅 Penales: <span style={{fontWeight:700,color:"var(--blue)"}}>{pred.penaltyWinner}</span></div>
-                    )}
+                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:28,color:pts===null?"#1B4F9E":pts>0?"var(--green)":res?"var(--red)":"#1B4F9E"}}>
+                    {pred?`${pred.homeGoals} - ${pred.awayGoals}`:<span style={{color:"#B0B8CC",fontSize:15,fontStyle:"italic"}}>Sin pronóstico</span>}
                   </div>
                   <div style={{minWidth:54,textAlign:"right"}}>
                     {pts!==null && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:24,color:pts>0?"var(--green)":"var(--red)"}}>{pts>0?`+${pts}`:0}<span style={{fontSize:13}}> pts</span></div>}
@@ -1966,46 +1724,23 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
           </div>
         </div>
       )}
-      </>}
 
-      {/* TABLA B — Clasificación de grupos (pestaña propia) */}
-      {viewCategory==="tablab" && (
-        <div>
-          <div className="alert alert-info" style={{marginBottom:14}}>
-            📊 1° y 2° de cada grupo, pronosticados por cada participante.
-          </div>
-          {Object.keys(GROUPS).map(group => {
-            const res = groupResults[group];
-            const visible = !!res || clasifBlocked;
+      {/* TABLA B — Clasificación de grupos */}
+      {!selectedMatch && phase==="grupos" && groupPicks && (
+        <div style={{marginTop:20}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)",marginBottom:10}}>📊 Pronósticos Tabla B — Clasificación de Grupos</div>
+          {participants.map(u => {
+            const picks = groupPicks[u.username];
+            if (!picks || Object.keys(picks).length===0) return null;
             return (
-              <div key={group} className="card" style={{marginBottom:12}}>
-                <div className="card-body">
-                  <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"var(--blue)",marginBottom:8}}>
-                    Grupo {group}{res && ` — Real: 1° ${res.first} / 2° ${res.second}`}
-                  </div>
-                  {!visible && <div style={{fontSize:13,color:"#6B7A99"}}>🔒 Oculto hasta el cierre de clasificación</div>}
-                  {visible && (
-                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                      {participants.map(u => {
-                        const pick = groupPicks[u.username]?.[group];
-                        if (!pick) return null;
-                        let pts = "";
-                        if (res) {
-                          if (pick.first===res.first && pick.second===res.second) pts=4;
-                          else if (pick.first===res.second && pick.second===res.first) pts=2;
-                          else if ([pick.first,pick.second].includes(res.first) || [pick.first,pick.second].includes(res.second)) pts=1;
-                          else pts=0;
-                        }
-                        return (
-                          <div key={u.username} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#F8F9FC",borderRadius:8}}>
-                            <div style={{flex:1,fontWeight:600,fontSize:14}}>{u.apodo||u.name}</div>
-                            <div style={{fontSize:13}}>1° {pick.first} · 2° {pick.second}</div>
-                            {res && <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:pts>0?"var(--green)":"var(--red)",minWidth:50,textAlign:"right"}}>+{pts}pts</div>}
-                          </div>
-                        );
-                      })}
+              <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border)"}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>{u.apodo||u.name}</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:6}}>
+                  {Object.entries(picks).map(([group,pick]) => (
+                    <div key={group} style={{fontSize:13,background:"rgba(27,79,158,0.06)",borderRadius:8,padding:"4px 8px"}}>
+                      <span style={{fontWeight:700}}>Grupo {group}:</span> 1°{pick.first} / 2°{pick.second}
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             );
@@ -2013,35 +1748,25 @@ function VerPronosticosTab({currentUser, users, predictions, results, groupPicks
         </div>
       )}
 
-      {/* FASE 3 — Podio final (pestaña propia) */}
-      {viewCategory==="fase3" && (
-        <div>
-          <div className="alert alert-info" style={{marginBottom:14}}>
-            🏆 Pronóstico de campeón, subcampeón, 3er y 4° puesto de cada participante.
-          </div>
-          {(!!finalResults?.champion || fase3Blocked) ? (
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {participants.map(u => {
-                const fp = finalPicks[u.username];
-                if (!fp || !fp.champion) return null;
-                return (
-                  <div key={u.username} className="card">
-                    <div className="card-body">
-                      <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{u.apodo||u.name}</div>
-                      <div style={{fontSize:13,display:"flex",gap:12,flexWrap:"wrap"}}>
-                        <span>🥇 {fp.champion}</span>
-                        <span>🥈 {fp.runnerUp}</span>
-                        <span>🥉 {fp.third}</span>
-                        <span>4° {fp.fourth}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="card"><div className="card-body" style={{fontSize:13,color:"#6B7A99"}}>🔒 Oculto hasta el cierre de Fase 3</div></div>
-          )}
+      {/* FASE 3 — Campeón */}
+      {!selectedMatch && phase==="grupos" && finalPicks && (
+        <div style={{marginTop:20}}>
+          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:20,color:"var(--blue)",marginBottom:10}}>🏆 Pronósticos Fase 3 — Campeón</div>
+          {participants.map(u => {
+            const fp = finalPicks[u.username];
+            if (!fp || !fp.champion) return null;
+            return (
+              <div key={u.username} style={{background:"var(--card)",borderRadius:10,padding:"10px 14px",marginBottom:8,border:"1px solid var(--border)"}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{u.apodo||u.name}</div>
+                <div style={{fontSize:13,display:"flex",gap:12,flexWrap:"wrap"}}>
+                  <span>🥇 {fp.champion}</span>
+                  <span>🥈 {fp.runnerUp}</span>
+                  <span>🥉 {fp.third}</span>
+                  <span>4° {fp.fourth}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -2153,135 +1878,9 @@ function MisPuntosTab({currentUser, predictions, groupPicks, finalPicks, results
 }
 
 // ============================================================
-// ARMAR FASE 2 — Panel independiente para asignar equipos reales
-// a todos los partidos de eliminación directa (Dieciseisavos en adelante)
-// ============================================================
-function ArmarFase2Tab({fase2Overrides, setFase2Overrides}) {
-  const [sub, setSub] = useState("dieciseisavos");
-  const [local, setLocal] = useState({});
-  const [savedMsg, setSavedMsg] = useState({});
-
-  const subPhases = [
-    {key:"dieciseisavos", label:"Dieciseisavos"},
-    {key:"octavos", label:"Octavos"},
-    {key:"cuartos", label:"Cuartos"},
-    {key:"semis", label:"Semis"},
-    {key:"tercer", label:"3er Puesto"},
-    {key:"final", label:"Final"},
-  ];
-
-  const matchesOfPhase = KNOCKOUT_MATCHES.filter(m => m.phase === sub)
-    .map(m => applyFase2Override(m, fase2Overrides));
-
-  // Resuelve el nombre a mostrar como placeholder de ayuda: si el rival depende
-  // de un partido anterior (ej "W R32_2"), muestra el cruce real si ya está armado.
-  function resolvePlaceholder(code) {
-    if (!code) return code;
-    const m = code.match(/^W (R\d+_\d+)$/);
-    if (m && fase2Overrides[m[1]]) {
-      const ov = fase2Overrides[m[1]];
-      return `Ganador (${ov.home} vs ${ov.away})`;
-    }
-    return code;
-  }
-
-  async function saveMatch(matchId, home, away) {
-    const value = `${home}|${away}`;
-    // Borrar override previo si existe, luego insertar (evita error de upsert sin constraint única)
-    await sb.from("config").delete().eq("key", `fase2_${matchId}`);
-    const {error} = await sb.from("config").insert({key:`fase2_${matchId}`, value});
-    if (error) { alert("❌ Error guardando: " + error.message); return; }
-    setFase2Overrides(prev => ({...prev, [matchId]: {home, away}}));
-    setSavedMsg(p=>({...p,[matchId]:true}));
-    setTimeout(()=>setSavedMsg(p=>({...p,[matchId]:false})),3000);
-  }
-
-  async function clearMatch(matchId) {
-    if (!window.confirm("¿Borrar el cruce guardado para " + matchId + "?")) return;
-    await sb.from("config").delete().eq("key", `fase2_${matchId}`);
-    setFase2Overrides(prev => {
-      const np = {...prev};
-      delete np[matchId];
-      return np;
-    });
-    setLocal(p => {
-      const np = {...p};
-      delete np[`f2_${matchId}`];
-      return np;
-    });
-  }
-
-  return (
-    <div>
-      <div style={{background:"linear-gradient(135deg,#1B4F9E,#C41E3A)",border:"none",borderRadius:14,padding:"20px 24px",marginBottom:16}}>
-        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🏗️ ARMAR FASE 2</div>
-        <div style={{fontSize:15,color:"#E8EDF5",marginTop:4,lineHeight:1.7}}>
-          Asigna los equipos reales a cada partido de eliminación directa conforme se vayan conociendo los resultados.
-          Empieza por Dieciseisavos; cuando esos partidos tengan resultado, los de Octavos mostrarán automáticamente
-          quién es el ganador para que sea más fácil armar el siguiente cruce.
-        </div>
-      </div>
-
-      <div className="phase-tabs" style={{marginBottom:14}}>
-        {subPhases.map(p=>(
-          <button key={p.key} className={`phase-tab ${sub===p.key?"active":""}`} onClick={()=>setSub(p.key)}>{p.label}</button>
-        ))}
-      </div>
-
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {matchesOfPhase.map(match => {
-          const current = fase2Overrides[match.id] || {};
-          const localKey = `f2_${match.id}`;
-          const localVal = local[localKey] || {home: current.home||"", away: current.away||""};
-          return (
-            <div key={match.id} style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",background:"#F8F9FC",borderRadius:10,padding:"10px 12px",border:"1px solid var(--border)"}}>
-              <div style={{minWidth:110}}>
-                <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:16,color:"#1B4F9E"}}>{match.id}</div>
-                <div style={{fontSize:11,color:"#6B7A99"}}>{fmtDate(match.date)} · {match.time}</div>
-                <div style={{fontSize:11,color:"#6B7A99",fontWeight:600}}>{resolvePlaceholder(match.home)} vs {resolvePlaceholder(match.away)}</div>
-              </div>
-              <select value={localVal.home} onChange={e=>setLocal(p=>({...p,[localKey]:{...localVal,home:e.target.value}}))}
-                style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
-                <option value="">-- Equipo local --</option>
-                {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-              <span style={{fontWeight:700,color:"#6B7A99"}}>vs</span>
-              <select value={localVal.away} onChange={e=>setLocal(p=>({...p,[localKey]:{...localVal,away:e.target.value}}))}
-                style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",color:"#1A1A2E",flex:1,minWidth:160}}>
-                <option value="">-- Equipo visitante --</option>
-                {ALL_TEAMS.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-              <button disabled={!localVal.home || !localVal.away} onClick={()=>saveMatch(match.id, localVal.home, localVal.away)}
-                style={{padding:"6px 14px",borderRadius:8,border:"1px solid #2D8A3E",
-                  background:(localVal.home && localVal.away)?"rgba(45,138,62,0.1)":"#eee",
-                  color:(localVal.home && localVal.away)?"#2D8A3E":"#aaa",
-                  fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:(localVal.home && localVal.away)?"pointer":"default"}}>
-                💾 Guardar
-              </button>
-              {current.home && current.away && (
-                <button onClick={()=>clearMatch(match.id)} style={{padding:"6px 10px",borderRadius:8,border:"1px solid #C41E3A",background:"transparent",color:"#C41E3A",fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                  🗑️ Borrar
-                </button>
-              )}
-              {savedMsg[match.id] && <span style={{color:"#2D8A3E",fontWeight:700,fontSize:13}}>✅ Guardado</span>}
-              {current.home && current.away && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ {current.home} vs {current.away}</span>}
-            </div>
-          );
-        })}
-        {matchesOfPhase.length === 0 && (
-          <div style={{textAlign:"center",padding:"30px",color:"#6B7A99",fontSize:15}}>
-            No hay partidos definidos para esta fase.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, openedDates, setOpenedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked, fase2Overrides, setFase2Overrides, torneoFinalizado=false, setTorneoFinalizado, ganadorSurvivor="", setGanadorSurvivor}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2351,10 +1950,10 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 
   const subPhases=[
     {key:"grupos",label:"Grupos"},{key:"dieciseisavos",label:"Dieciseisavos"},
-    {key:"octavos",label:"Octavos"},{key:"cuartos",label:"Cuartos"},{key:"semis",label:"Semis"},
+    {key:"cuartos",label:"Cuartos"},{key:"semis",label:"Semis"},
     {key:"tercer",label:"3er Puesto"},{key:"final",label:"Final"},
   ];
-  const matches = ALL_MATCHES.filter(m=>m.phase===matchPhase).map(m => applyFase2Override(m, fase2Overrides));
+  const matches = ALL_MATCHES.filter(m=>m.phase===matchPhase);
 
   function getR(matchId){return localResults[matchId]||results[matchId]||{};}
   function getGR(g){return localGroupResults[g]||groupResults[g]||{};}
@@ -2693,75 +2292,24 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
           <div style={{background:"rgba(196,30,58,0.06)",border:"1px solid rgba(196,30,58,0.3)",borderRadius:12,padding:"14px 16px",marginBottom:12}}>
             <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#C41E3A",letterSpacing:1,marginBottom:10}}>🔒 Control de bloqueo de envíos</div>
 
-            {/* Fase 1 por fecha — 3 estados: Auto / Forzar Abierto / Forzar Cerrado */}
+            {/* Fase 1 por fecha */}
             <div style={{marginBottom:10}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:6}}>⚽ Fase 1 — Estado de envío por fecha (clic para cambiar: Auto → Abierto → Cerrado → Auto):</div>
+              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:6}}>⚽ Fase 1 — Bloquear fecha específica:</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=>{
-                  const isBlocked = blockedDates.includes(d);
-                  const isOpened = openedDates.includes(d);
-                  const state = isBlocked ? "closed" : isOpened ? "open" : "auto";
-                  const styles = {
-                    auto:   {bg:"transparent", border:"var(--border)", color:"var(--text)", icon:"⚙️", label:"Auto"},
-                    open:   {bg:"#2D8A3E", border:"#2D8A3E", color:"#fff", icon:"🔓", label:"Abierto"},
-                    closed: {bg:"#C41E3A", border:"#C41E3A", color:"#fff", icon:"🔒", label:"Cerrado"},
-                  };
-                  const s = styles[state];
-                  return (
-                    <button key={d} onClick={async()=>{
-                      let newBlocked = blockedDates.filter(x=>x!==d);
-                      let newOpened = openedDates.filter(x=>x!==d);
-                      if (state === "auto") {
-                        newOpened = [...newOpened, d]; // auto -> abierto
-                      } else if (state === "open") {
-                        newBlocked = [...newBlocked, d]; // abierto -> cerrado
-                      } // cerrado -> auto (ambos arrays ya quedan sin la fecha)
-                      setBlockedDates(newBlocked);
-                      setOpenedDates(newOpened);
-                      await saveConfig("blockedDates", newBlocked.join(","));
-                      await saveConfig("openedDates", newOpened.join(","));
-                    }} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${s.border}`,fontSize:12,fontWeight:700,cursor:"pointer",
-                      background:s.bg, color:s.color}}>
-                      {s.icon} {d.slice(5)} · {s.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Fase 2 por fecha — mismo mecanismo de blockedDates/openedDates, 3 estados: Auto / Forzar Abierto / Forzar Cerrado */}
-            <div style={{marginBottom:10}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:6}}>🏆 Fase 2 — Estado de envío por fecha (clic para cambiar: Auto → Abierto → Cerrado → Auto):</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {[...new Set(KNOCKOUT_MATCHES.map(m=>m.date))].sort().map(d=>{
-                  const isBlocked = blockedDates.includes(d);
-                  const isOpened = openedDates.includes(d);
-                  const state = isBlocked ? "closed" : isOpened ? "open" : "auto";
-                  const styles = {
-                    auto:   {bg:"transparent", border:"var(--border)", color:"var(--text)", icon:"⚙️", label:"Auto"},
-                    open:   {bg:"#2D8A3E", border:"#2D8A3E", color:"#fff", icon:"🔓", label:"Abierto"},
-                    closed: {bg:"#C41E3A", border:"#C41E3A", color:"#fff", icon:"🔒", label:"Cerrado"},
-                  };
-                  const s = styles[state];
-                  return (
-                    <button key={d} onClick={async()=>{
-                      let newBlocked = blockedDates.filter(x=>x!==d);
-                      let newOpened = openedDates.filter(x=>x!==d);
-                      if (state === "auto") {
-                        newOpened = [...newOpened, d]; // auto -> abierto
-                      } else if (state === "open") {
-                        newBlocked = [...newBlocked, d]; // abierto -> cerrado
-                      } // cerrado -> auto (ambos arrays ya quedan sin la fecha)
-                      setBlockedDates(newBlocked);
-                      setOpenedDates(newOpened);
-                      await saveConfig("blockedDates", newBlocked.join(","));
-                      await saveConfig("openedDates", newOpened.join(","));
-                    }} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${s.border}`,fontSize:12,fontWeight:700,cursor:"pointer",
-                      background:s.bg, color:s.color}}>
-                      {s.icon} {d.slice(5)} · {s.label}
-                    </button>
-                  );
-                })}
+                {[...new Set(GROUP_MATCHES.map(m=>m.date))].sort().map(d=>(
+                  <button key={d} onClick={async()=>{
+                    const newBlocked = blockedDates.includes(d)
+                      ? blockedDates.filter(x=>x!==d)
+                      : [...blockedDates, d];
+                    setBlockedDates(newBlocked);
+                    await sb.from("config").upsert({key:"blockedDates",value:newBlocked.join(",")},{onConflict:"key"});
+                  }} style={{padding:"5px 10px",borderRadius:8,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
+                    background:blockedDates.includes(d)?"#C41E3A":"transparent",
+                    borderColor:blockedDates.includes(d)?"#C41E3A":"var(--border)",
+                    color:blockedDates.includes(d)?"#fff":"var(--text)"}}>
+                    {blockedDates.includes(d)?"🔒":"🔓"} {d.slice(5)}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -2771,7 +2319,7 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               <button onClick={async()=>{
                 const newVal = !clasifBlocked;
                 setClasifBlocked(newVal);
-                await saveConfig("clasifBlocked", newVal?"true":"false");
+                await sb.from("config").upsert({key:"clasifBlocked",value:newVal?"true":"false"},{onConflict:"key"});
               }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
                 background:clasifBlocked?"#C41E3A":"rgba(45,138,62,0.1)",
                 borderColor:clasifBlocked?"#C41E3A":"#2D8A3E",
@@ -2786,42 +2334,13 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
               <button onClick={async()=>{
                 const newVal = !fase3Blocked;
                 setFase3Blocked(newVal);
-                await saveConfig("fase3Blocked", newVal?"true":"false");
+                await sb.from("config").upsert({key:"fase3Blocked",value:newVal?"true":"false"},{onConflict:"key"});
               }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
                 background:fase3Blocked?"#C41E3A":"rgba(45,138,62,0.1)",
                 borderColor:fase3Blocked?"#C41E3A":"#2D8A3E",
                 color:fase3Blocked?"#fff":"#2D8A3E"}}>
                 {fase3Blocked?"🔒 Bloqueado — clic para abrir":"🔓 Abierto — clic para bloquear"}
               </button>
-            </div>
-
-            {/* ══ CELEBRACIÓN FINAL ══ */}
-            <div style={{marginTop:12,padding:"14px 16px",background:"linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,107,53,0.1))",
-              borderRadius:12,border:"2px solid rgba(255,215,0,0.4)"}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:10}}>🎉 Pantalla de celebración final</div>
-              <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:10}}>
-                <span style={{fontSize:13}}>Torneo finalizado:</span>
-                <button onClick={async()=>{
-                  const newVal = !torneoFinalizado;
-                  setTorneoFinalizado(newVal);
-                  await saveConfig("torneoFinalizado", newVal?"true":"false");
-                }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid",fontSize:13,fontWeight:700,cursor:"pointer",
-                  background:torneoFinalizado?"#2D8A3E":"#C41E3A",
-                  borderColor:torneoFinalizado?"#2D8A3E":"#C41E3A",color:"#fff"}}>
-                  {torneoFinalizado?"✅ Activo — clic para desactivar":"❌ Inactivo — clic para activar"}
-                </button>
-              </div>
-              <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-                <span style={{fontSize:13}}>🔥 Ganador Survivor:</span>
-                <select value={ganadorSurvivor}
-                  onChange={async e=>{setGanadorSurvivor(e.target.value); await saveConfig("ganadorSurvivor", e.target.value);}}
-                  style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E"}}>
-                  <option value="">-- Sin ganador Survivor --</option>
-                  {users.filter(u=>!u.isAdmin && u.survivorEnabled).map(u=>(
-                    <option key={u.username} value={u.username}>{u.apodo||u.name}</option>
-                  ))}
-                </select>
-              </div>
             </div>
           </div>
 
@@ -2962,14 +2481,13 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
 // ============================================================
 // MAÑANA TAB
 // ============================================================
-function MananaTab({currentUser, predictions, results, savePrediction, blockedDates=[], openedDates=[], fase2Overrides={}}) {
+function MananaTab({currentUser, predictions, results, savePrediction, blockedDates=[]}) {
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
   // Antes del inicio: mostrar el 12 jun (jornada 1 segundo día)
   const tomorrow = realToday < MUNDIAL_START ? "2026-06-12" : tomorrowStr();
   const isAnchored = realToday < MUNDIAL_START;
-  const matches = ALL_MATCHES.filter(m => m.date === tomorrow && m.fase <= 2)
-    .map(m => applyFase2Override(m, fase2Overrides));
+  const matches = ALL_MATCHES.filter(m => m.date === tomorrow && m.fase <= 2);
   return (
     <div>
       <div className="phase-banner f1">
@@ -2984,7 +2502,7 @@ function MananaTab({currentUser, predictions, results, savePrediction, blockedDa
         </div>
       ) : (
         <MatchList matches={matches} predictions={predictions} results={results}
-          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} openedDates={openedDates} />
+          savePrediction={savePrediction} allPredictions={null} showScores={false} blockedDates={blockedDates} />
       )}
     </div>
   );
@@ -2993,17 +2511,10 @@ function MananaTab({currentUser, predictions, results, savePrediction, blockedDa
 // ============================================================
 // SURVIVOR TAB
 // ============================================================
-function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate, survivorBlockedDates, setSurvivorBlockedDates, survivorActiveJornadas, setSurvivorActiveJornadas, fase2Overrides={}}) {
+function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survivorTestDate, setSurvivorTestDate, survivorBlockedDates, setSurvivorBlockedDates}) {
   const isAdmin = currentUser.isAdmin;
   const survivorUsers = users.filter(u => !u.isAdmin && !u.isDemo && u.survivorEnabled === true);
-  const groupDates = [...new Set(ALL_MATCHES.map(m => m.date))].sort();
-  // Jornada seleccionada en "Ver Survivor de..." (admin)
-  const [viewJornada, setViewJornada] = useState("");
-  // Panel ingreso manual de pick
-  const [manualUser, setManualUser] = useState("");
-  const [manualTeam, setManualTeam] = useState("");
-  const [manualPickDate, setManualPickDate] = useState("");
-  const [manualMsg, setManualMsg] = useState("");
+  const groupDates = [...new Set(GROUP_MATCHES.map(m => m.date))].sort();
   const realToday = new Date(new Date().toLocaleString("en-US",{timeZone:"America/Bogota"})).toISOString().slice(0,10);
   const MUNDIAL_START = "2026-06-11";
   // survivorMaxDate = fecha hasta la que el admin habilitó envío (ej: "2026-06-12")
@@ -3013,28 +2524,20 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   // Mapeo inline para calcular jornadaKey de realToday
   const JORNADA_MAP = {
     '2026-06-11': '2026-06-11', '2026-06-12': '2026-06-11',
-    '2026-06-28': '2026-06-28', '2026-06-29': '2026-06-28', // un solo pick entre ambos días
-    '2026-07-09': '2026-07-09', '2026-07-10': '2026-07-10',
+    '2026-06-28': '2026-06-28', '2026-06-29': '2026-06-28',
+    '2026-07-09': '2026-07-09', '2026-07-10': '2026-07-09',
   };
   const getJornadaKeyEarly = (d) => JORNADA_MAP[d] || d;
 
   // today = jornada que el admin habilitó (survivorMaxDate), SIEMPRE.
   // El Survivor funciona "un día antes": el admin habilita la fecha del partido
   // siguiente y los jugadores ven y eligen los equipos de esa jornada.
-  // today = última jornada habilitada (para compatibilidad con historial y admin)
   const today = survivorMaxDate ? getJornadaKeyEarly(survivorMaxDate) : MUNDIAL_START;
 
+  // Puede enviar pick si el admin habilitó una fecha y aún no cerró (11PM del survivorMaxDate)
   const survivorClose = survivorMaxDate ? new Date(survivorMaxDate + "T23:00:00-05:00") : null;
   const survivorClosed = survivorClose ? new Date() >= survivorClose : true;
-
-  // Todas las jornadas habilitadas por el admin (activas + survivorMaxDate)
-  const allActiveJornadas = [...new Set([
-    ...survivorActiveJornadas,
-    ...(survivorMaxDate && !survivorClosed ? [getJornadaKeyEarly(survivorMaxDate)] : [])
-  ])].filter(j => !survivorBlockedDates.includes(j)).sort();
-
-  // canPickToday: hay al menos una jornada activa no bloqueada
-  const canPickToday = allActiveJornadas.length > 0;
+  const canPickToday = !survivorBlockedDates.includes(today) && (survivorMaxDate ? !survivorClosed : false);
 
   // Polling cada 30s para que jugadores vean cambios del admin en tiempo real
   useEffect(() => {
@@ -3052,34 +2555,37 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
 
   async function setSurvivorMaxDate(date) {
     setSurvivorTestDate(date);
-    await saveConfig("survivorTestDate", date);
+    await sb.from("config").upsert({key:"survivorTestDate", value:date},{onConflict:"key"});
   }
 
-  // Verifica picks faltantes para UNA jornada específica elegida por el admin
-  async function checkMissingPicks(jornadaKey) {
-    if (!jornadaKey) { alert("⚠️ Elige una jornada primero."); return; }
+  async function checkMissingPicks() {
+    const allJornadaKeys = [...new Set(groupDates.map(d => getJornadaKey(d)))].sort();
+    const currentJornadaKey = getJornadaKey(today);
+    const pastJornadas = allJornadaKeys.filter(j => j < currentJornadaKey);
+    if (pastJornadas.length === 0) {
+      alert("ℹ️ No hay jornadas cerradas. Fecha actual: " + today + " (jornada: " + currentJornadaKey + "). Avanza a un día posterior.");
+      return;
+    }
     let sinPick = 0;
-    // Solo procesar jugadores que siguen VIVOS (menos de 2 vidas perdidas)
-    const jugadoresVivos = survivorUsers.filter(u => getLivesLost(u.username) < 2);
-    for (const u of jugadoresVivos) {
-      const userPicks = survivorPicks[u.username] || {};
-      const hasPick = Object.keys(userPicks).some(d => getJornadaKey(d) === jornadaKey);
-      if (!hasPick) {
-        const {error} = await sb.from("survivor_picks").insert({
-          username: u.username, date: jornadaKey, team: "Sin pick",
-          failed: true, result: "nopick", match_id: jornadaKey
-        });
-        if (!error) {
-          setSurvivorPicks(prev => ({...prev, [u.username]: {
-            ...(prev[u.username]||{}), [jornadaKey]: {team:"Sin pick",failed:true,result:"nopick"}
-          }}));
-          sinPick++;
+    for (const jornadaKey of pastJornadas) {
+      for (const u of survivorUsers) {
+        const userPicks = survivorPicks[u.username] || {};
+        const hasPick = Object.keys(userPicks).some(d => getJornadaKey(d) === jornadaKey);
+        if (!hasPick) {
+          const {error} = await sb.from("survivor_picks").insert({
+            username: u.username, date: jornadaKey, team: "Sin pick",
+            failed: true, result: "nopick", match_id: jornadaKey
+          });
+          if (!error) {
+            setSurvivorPicks(prev => ({...prev, [u.username]: {
+              ...(prev[u.username]||{}), [jornadaKey]: {team:"Sin pick",failed:true,result:"nopick"}
+            }}));
+            sinPick++;
+          }
         }
       }
     }
-    alert(sinPick > 0
-      ? `✅ ${sinPick} jugadores VIVOS marcados sin pick en jornada ${jornadaKey} (eliminados ignorados)`
-      : `✅ Todos los jugadores VIVOS enviaron pick en la jornada ${jornadaKey}`);
+    alert(sinPick > 0 ? "✅ " + sinPick + " jugadores marcados sin pick en: " + pastJornadas.join(", ") : "✅ Todos enviaron pick en jornadas: " + pastJornadas.join(", "));
   }
 
   // advanceTestDate eliminado
@@ -3088,11 +2594,10 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   const UNIFIED_DAYS = {
     '2026-06-11': '2026-06-11', // Jornada 1
     '2026-06-12': '2026-06-11', // Jornada 1 (mismo bloque)
-    '2026-06-28': '2026-06-28', // Fase 2 — un solo pick entre 28 y 29
-    '2026-06-29': '2026-06-28', // Fase 2 — mismo bloque que el 28
-    '2026-07-09': '2026-07-09', // QF1 — jornada independiente
-    '2026-07-10': '2026-07-10', // QF2 — jornada independiente
-    '2026-07-11': '2026-07-11', // QF3 y QF4 — mismo bloque
+    '2026-06-28': '2026-06-28', // Jornada 17
+    '2026-06-29': '2026-06-28', // Jornada 17 (mismo bloque)
+    '2026-07-09': '2026-07-09', // Jornada 24
+    '2026-07-10': '2026-07-09', // Jornada 24 (mismo bloque)
   };
   // Partido 3er puesto NO cuenta para Survivor
   const EXCLUDED_SURVIVOR = ['2026-07-12'];
@@ -3127,8 +2632,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
     .filter(([d, k]) => k === todayJornadaKey)
     .map(([d]) => d);
   const jornadaMatchDates = jornadaDates.length > 0 ? jornadaDates : [today];
-  const todayMatches = ALL_MATCHES.filter(m => jornadaMatchDates.includes(m.date))
-    .map(m => applyFase2Override(m, fase2Overrides));
+  const todayMatches = GROUP_MATCHES.filter(m => jornadaMatchDates.includes(m.date));
   const todayTeams = [...new Set(todayMatches.flatMap(m => [m.home, m.away]))];
   // Available = playing in this jornada AND not already used
   const availableTeams = todayTeams.filter(t => !myUsedTeams.includes(t));
@@ -3169,12 +2673,8 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
   async function markResult(username, date, result) {
     const pick = survivorPicks[username]?.[date];
     if (!pick) return;
-    // Reglas simples:
-    // "win"  -> no pierde vida
-    // "draw" -> SÍ pierde vida (cuenta como derrota)
-    // "loss" -> SÍ pierde vida
-    // "nulo" -> día nulo manual, NO pierde vida (admin lo marca cuando TODOS empataron)
-    const failed = (result === "draw" || result === "loss");
+    const isExcluded = EXCLUDED_SURVIVOR.includes(date);
+    const failed = result !== "win" && !isExcluded;
     setSurvivorPicks(prev => ({
       ...prev,
       [username]: {
@@ -3213,62 +2713,44 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#F5C518",letterSpacing:4}}>🔥 SURVIVOR</div>
           {isAdmin && (
-            <>
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:8}}>
               <button onClick={() => {
-                // Exportar por jornada seleccionada (o jornada actual si no hay selección)
-                const jornadaExport = viewJornada || today;
-                const datesOfJornada = groupDates.filter(d => getJornadaKeyEarly(d) === jornadaExport);
-                const rows = [["Usuario","Nombre","Jornada","¿Envió?","Equipo","Resultado","Falló","Vidas perdidas","Estado"]];
+                const rows = [["Usuario","Nombre","Jornada","Equipo","Resultado","Falló"]];
                 survivorUsers.forEach(u => {
                   const picks = survivorPicks[u.username] || {};
-                  const livesLost = getLivesLost(u.username);
-                  const alive = livesLost < 2;
-                  // Buscar pick de la jornada exportada
-                  const pick = picks[jornadaExport] || datesOfJornada.map(d=>picks[d]).find(Boolean);
-                  if (pick) {
-                    rows.push([u.username, u.apodo||u.name, jornadaExport, "✅ Enviado",
-                      pick.team||"", pick.result||"pendiente", pick.failed?"Sí":"No",
-                      livesLost, alive?"VIVO":"ELIMINADO"]);
+                  if (Object.keys(picks).length === 0) {
+                    rows.push([u.username, u.name, "Sin pick", "", "", ""]);
                   } else {
-                    rows.push([u.username, u.apodo||u.name, jornadaExport, "❌ NO envió",
-                      "", "", "", livesLost, alive?"VIVO":"ELIMINADO"]);
+                    Object.entries(picks).sort(([a],[b])=>a>b?1:-1).forEach(([date, p]) => {
+                      rows.push([u.username, u.name, date, p.team||"", p.result||"pendiente", p.failed?"Sí":"No"]);
+                    });
                   }
                 });
                 const csv = rows.map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
                 const blob = new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(blob);
-                a.download = `Survivor_Jornada_${jornadaExport}.csv`;
+                a.download = `Survivor_Picks_${new Date().toISOString().slice(0,10)}.csv`;
                 a.click();
                 URL.revokeObjectURL(a.href);
               }} style={{padding:"6px 12px",borderRadius:8,border:"1px solid #1B4F9E",background:"rgba(27,79,158,0.08)",color:"#1B4F9E",fontFamily:"inherit",fontSize:12,fontWeight:700,cursor:"pointer"}}>
                 📥 Exportar picks Survivor
               </button>
-              <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Jornadas habilitadas:</span>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {[...new Set(groupDates.map(d=>getJornadaKeyEarly(d)))].map(jk => {
-                  const isActive = survivorActiveJornadas.includes(jk);
-                  return (
-                    <button key={jk} onClick={async()=>{
-                      const newActive = isActive
-                        ? survivorActiveJornadas.filter(x=>x!==jk)
-                        : [...survivorActiveJornadas, jk];
-                      setSurvivorActiveJornadas(newActive);
-                      await saveConfig("survivorActiveJornadas", newActive.join(","));
-                      // Mantener survivorMaxDate como la última jornada activa (para compatibilidad)
-                      const lastActive = newActive.sort().slice(-1)[0];
-                      if (lastActive) await setSurvivorMaxDate(lastActive);
-                    }} style={{padding:"5px 10px",borderRadius:8,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
-                      background:isActive?"#2D8A3E":"transparent",
-                      borderColor:isActive?"#2D8A3E":"var(--border)",
-                      color:isActive?"#fff":"var(--text)"}}>
-                      {isActive?"🔓":"🔒"} {fmtD(jk)}
-                    </button>
-                  );
-                })}
-              </div>
-              {survivorActiveJornadas.length > 0 && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ Activas: {survivorActiveJornadas.map(j=>fmtD(j)).join(", ")}</span>}
+              <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Jornada habilitada hasta:</span>
+              <select
+                value={survivorMaxDate || "off"}
+                onChange={async e => {
+                  const val = e.target.value;
+                  await setSurvivorMaxDate(val);
+                }}
+                style={{padding:"6px 12px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E",cursor:"pointer"}}
+              >
+                <option value="off">🔒 Cerrado (nadie puede enviar)</option>
+                {groupDates.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              {survivorMaxDate && !survivorBlockedDates.includes(today) && <span style={{fontSize:12,color:"#2D8A3E",fontWeight:700}}>✅ Jugadores pueden enviar pick hasta {survivorMaxDate}</span>}
             </div>
             <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:8}}>
               <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>🔒 Bloquear jornada (clic para activar/desactivar):</span>
@@ -3284,7 +2766,7 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                       ? survivorBlockedDates.filter(x=>x!==jk)
                       : [...survivorBlockedDates, jk];
                     setSurvivorBlockedDates(newBlocked);
-                    await saveConfig("survivorBlockedDates", newBlocked.join(","));
+                    await sb.from("config").upsert({key:"survivorBlockedDates",value:newBlocked.join(",")},{onConflict:"key"});
                   }} style={{padding:"5px 10px",borderRadius:8,border:"1px solid",fontSize:12,fontWeight:700,cursor:"pointer",
                     background:isBlocked?"#C41E3A":"transparent",
                     borderColor:isBlocked?"#C41E3A":"var(--border)",
@@ -3294,7 +2776,6 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 );
               })}
             </div>
-            </>
           )}
         </div>
         <div style={{fontSize:15,color:"#E8EDF5",marginTop:4,lineHeight:1.7}}>
@@ -3338,94 +2819,111 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 {Object.entries(myPicks).sort(([a],[b])=>a>b?1:-1).map(([date, pick]) => (
                   <div key={date} style={{
                     padding:"6px 10px",borderRadius:8,fontSize:15,fontWeight:600,
-                    background: pick.result==="nulo"?"rgba(107,122,153,0.15)":pick.failed?"rgba(232,64,64,0.15)":pick.result==="win"?"rgba(0,168,107,0.15)":"var(--dark)",
-                    border:`1px solid ${pick.result==="nulo"?"#6B7A99":pick.failed?"var(--red)":pick.result==="win"?"var(--green)":"var(--border)"}`
+                    background: date==="2026-06-11"?"rgba(59,130,246,0.15)":pick.failed?"rgba(232,64,64,0.15)":pick.result==="win"?"rgba(0,168,107,0.15)":"var(--dark)",
+                    border:`1px solid ${date==="2026-06-11"?"var(--accent)":pick.failed?"var(--red)":pick.result==="win"?"var(--green)":"var(--border)"}`
                   }}>
                     <FlagImg team={pick.team} size={15}/> {pick.team}
                     <span style={{marginLeft:6,fontSize:12,color:"#6B7A99"}}>{fmtD(date)}</span>
+                    {date==="2026-06-11" && <span style={{marginLeft:4,fontSize:12,color:"#1B4F9E"}}>Día 1</span>}
+                    {pick.failed && <span style={{marginLeft:4}}>💀</span>}
                     {pick.result==="win" && <span style={{marginLeft:4}}>✅</span>}
-                    {pick.result==="draw" && <span style={{marginLeft:4}}>💀 empató</span>}
-                    {pick.result==="loss" && <span style={{marginLeft:4}}>💀</span>}
-                    {pick.result==="nulo" && <span style={{marginLeft:4,fontSize:12,color:"#6B7A99"}}>🟦 día nulo</span>}
+                    {pick.result==="draw" && !pick.failed && <span style={{marginLeft:4,fontSize:12,color:"#1B4F9E"}}>➖ día nulo</span>}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Pick inputs — una por cada jornada activa pendiente */}
-          {!myAlive ? null : !canPickToday ? (
-            <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
-              📅 No hay jornadas habilitadas en este momento. Pronto podrás enviar tu pick.
-            </div>
-          ) : (
-            <>{allActiveJornadas.map(jornadaKey => {
-              // Buscar si ya envió pick para esta jornada específica
-              const datesOfJornada = groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaKey);
-              const sentPick = myPicks[jornadaKey] || datesOfJornada.map(d=>myPicks[d]).find(Boolean);
-              const jornadaMatches = ALL_MATCHES.filter(m => datesOfJornada.includes(m.date))
-                .map(m => applyFase2Override(m, fase2Overrides));
-              const jornadaTeams = [...new Set(jornadaMatches.flatMap(m=>[m.home,m.away]))];
-              const availTeams = jornadaTeams.filter(t => !myUsedTeams.includes(t));
-
-              if (sentPick) {
-                // Ya envió — mostrar confirmación + botón re-sincronizar si no está en Supabase
-                return (
-                  <div key={jornadaKey} style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                      <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✅ Pick {fmtD(jornadaKey)} — no se puede cambiar:</span>
-                      <FlagImg team={sentPick.team} size={18}/>
-                      <span style={{fontWeight:700,fontSize:15}}>{sentPick.team}</span>
-                      {sentPick.result
-                        ? <span style={{fontSize:14,color:sentPick.result==="win"?"var(--green)":sentPick.result==="nulo"?"#6B7A99":"var(--red)"}}>
-                            {sentPick.result==="win"?"✅ Ganó":sentPick.result==="nulo"?"🟦 Día nulo":sentPick.result==="draw"?"💀 Empató":"💀 Perdió"}
-                          </span>
-                        : <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>}
-                    </div>
-                  </div>
-                );
-              }
-              // No envió — mostrar selector para esta jornada
+          {/* Today's pick input */}
+          {(() => {
+            // Buscar pick en jornadaKey, en cualquier fecha de la jornada,
+            // o en cualquier pick SIN resultado (recién enviado esta jornada)
+            const allPickDates = Object.keys(myPicks);
+            const currentJornadaPick = myPicks[todayJornadaKey]
+              || jornadaMatchDates.map(d=>myPicks[d]).find(Boolean)
+              || (allPickDates.length > 0
+                  ? Object.entries(myPicks)
+                      .filter(([d,p]) => !p.result && jornadaMatchDates.some(jd=>jd===d || getJornadaKeyEarly(d)===todayJornadaKey))
+                      .map(([,p])=>p)[0]
+                  : null);
+            const alreadyPickedThisJornada = !!currentJornadaPick;
+            // Si ya envió pick, mostrar el pick enviado
+            if (alreadyPickedThisJornada) {
+              const sentPick = currentJornadaPick;
+              if (!sentPick) return null;
               return (
-                <div key={jornadaKey} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:12,padding:"14px 18px"}}>
-                  <div style={{fontSize:14,color:"#6B7A99",marginBottom:8,fontWeight:700}}>
-                    🎯 Tu pick · Jornada {fmtD(jornadaKey)}
+                <div style={{background:"rgba(45,138,62,0.08)",border:"1px solid var(--green)",borderRadius:10,padding:"12px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:15,color:"#2D8A3E",fontWeight:700}}>✅ Pick enviado — no se puede cambiar:</span>
+                    <FlagImg team={sentPick.team} size={20}/>
+                    <span style={{fontWeight:700,fontSize:16}}>{sentPick.team}</span>
+                    {sentPick.result && (
+                      <span style={{fontSize:15,color:sentPick.result==="win"?"var(--green)":sentPick.failed?"var(--red)":"var(--accent)"}}>
+                        {sentPick.result==="win"?"✅ Ganó":sentPick.failed?"💀 Falló":"➖ Empate"}
+                      </span>
+                    )}
+                    {!sentPick.result && (
+                      <span style={{fontSize:13,color:"#6B7A99"}}>· Pendiente resultado</span>
+                    )}
                   </div>
-                  {availTeams.length > 0 ? (
-                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                      <select value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)}
-                        style={{padding:"8px 12px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:15,background:"#F8F9FC",color:"#1A1A2E",flex:1,minWidth:180}}>
-                        <option value="">-- Elige tu equipo --</option>
-                        {availTeams.map(t=><option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <button className="btn-save" onClick={async()=>{
-                        if (!selectedTeam) return;
-                        setSaved(false);
-                        const pickDate = jornadaKey;
-                        try {
-                          await sb.from("survivor_picks").delete().eq("username",currentUser.username).eq("date",pickDate);
-                          const {error} = await sb.from("survivor_picks").insert({username:currentUser.username,date:pickDate,team:selectedTeam,failed:false,result:null,match_id:pickDate});
-                          if (error) throw error;
-                          // Solo reflejar como guardado en pantalla DESPUÉS de confirmar éxito en la base de datos
-                          setSurvivorPicks(prev=>({...prev,[currentUser.username]:{...(prev[currentUser.username]||{}),[pickDate]:{team:selectedTeam,failed:false,result:null}}}));
-                          setSaved(true);
-                          setSelectedTeam("");
-                          setTimeout(()=>setSaved(false),2500);
-                        } catch(e) {
-                          alert("❌ No se pudo guardar tu pick. Por favor intenta de nuevo.\n\nDetalle: " + (e?.message||"error desconocido"));
-                        }
-                      }} style={{padding:"10px 20px",background:"var(--gold)",color:"#000",borderRadius:8,border:"none",fontFamily:"inherit",fontSize:15,fontWeight:700,cursor:"pointer"}}>
-                        🔥 Confirmar pick
-                      </button>
-                      {saved && <span style={{color:"#2D8A3E",fontSize:15,fontWeight:700}}>✅ ¡Pick guardado!</span>}
-                    </div>
-                  ) : (
-                    <div style={{fontSize:15,color:"#C41E3A",fontWeight:600}}>⚠️ Ya usaste todos los equipos que juegan esta jornada.</div>
-                  )}
                 </div>
               );
-            })}</>
-          )}
+            }
+            // Si no ha enviado y no está vivo, no mostrar nada
+            if (!myAlive) return null;
+            // Si el admin bloqueó manualmente esta jornada
+            if (survivorBlockedDates.includes(today)) return (
+              <div style={{background:"rgba(196,30,58,0.1)",border:"1px solid #C41E3A",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
+                🔒 El envío de picks de esta jornada está cerrado.
+              </div>
+            );
+            // Si no hay fecha habilitada
+            if (!canPickToday) return (
+              <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
+                📅 La jornada de hoy aún no está habilitada. Pronto podrás enviar tu pick.
+              </div>
+            );
+            // Si no hay partidos
+            if (todayMatches.length === 0) return (
+              <div style={{background:"rgba(107,122,153,0.1)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#6B7A99",fontWeight:700,textAlign:"center"}}>
+                📅 No hay partidos de grupos en la jornada de hoy.
+              </div>
+            );
+            // Si cerró
+            if (survivorClosed) return (
+              <div style={{background:"rgba(196,30,58,0.1)",border:"1px solid #C41E3A",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#C41E3A",fontWeight:700,textAlign:"center"}}>
+                🔒 El plazo para enviar tu pick de esta jornada ya cerró.
+              </div>
+            );
+            // Mostrar selector de equipo
+            return (
+              <div style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"16px 20px"}}>
+                <div style={{fontSize:15,color:"#6B7A99",marginBottom:8,fontWeight:700}}>
+                  🎯 Tu pick · Jornada {jornadaMatchDates.length > 1 ? jornadaMatchDates.map(d=>fmtD(d)).join(" y ") : fmtD(today)}
+                </div>
+                {availableTeams.length > 0 ? (
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                    <select value={selectedTeam} onChange={e=>setSelectedTeam(e.target.value)}
+                      style={{padding:"8px 12px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:15,background:"#F8F9FC",color:"#1A1A2E",flex:1,minWidth:180}}>
+                      <option value="">-- Elige tu equipo --</option>
+                      {availableTeams.map(t=><option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <button className="btn-save" onClick={savePick} style={{padding:"10px 20px",background:"var(--gold)",color:"#000"}}>🔥 Confirmar pick</button>
+                    {saved && <span style={{color:"#2D8A3E",fontSize:15,fontWeight:700}}>✅ ¡Pick guardado!</span>}
+                  </div>
+                ) : (
+                  <div style={{fontSize:15,color:"#C41E3A",fontWeight:600}}>
+                    ⚠️ Ya usaste todos los equipos que juegan hoy.
+                  </div>
+                )}
+                {myUsedTeams.length > 0 && (
+                  <div style={{fontSize:14,color:"rgba(255,255,255,0.8)",marginTop:8,fontWeight:600}}>
+                    🚫 Equipos ya usados: {myUsedTeams.join(" · ")}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {!myAlive && (
             <div style={{fontSize:16,color:"#C41E3A",fontWeight:700,textAlign:"center",padding:"10px 0"}}>
               💀 Has sido eliminado del Survivor. ¡Mejor suerte la próxima!
@@ -3434,27 +2932,14 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
         </div>
       )}
 
-      {/* All survivors status table — filtrable por jornada */}
+      {/* All survivors status table */}
       <div style={{marginBottom:20}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:10}}>
-          <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2}}>
-            👥 Estado Survivor ({survivors.length} vivos / {survivorUsers.length})
-          </div>
-          {isAdmin && (
-            <div style={{display:"flex",gap:6,alignItems:"center"}}>
-              <span style={{fontSize:13,color:"#6B7A99",fontWeight:700}}>📅 Ver jornada:</span>
-              <select value={viewJornada} onChange={e=>setViewJornada(e.target.value)}
-                style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E"}}>
-                <option value="">-- Jornada actual ({fmtD(today)}) --</option>
-                {[...new Set(groupDates.map(d=>getJornadaKeyEarly(d)))].map(jk=>(
-                  <option key={jk} value={jk}>Jornada {fmtD(jk)}</option>
-                ))}
-              </select>
-            </div>
-          )}
+        <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1B4F9E",letterSpacing:2,marginBottom:10}}>
+          👥 Estado Survivor ({survivors.length} vivos / {survivorUsers.length})
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {survivorUsers.sort((a,b) => {
+            // Sort: alive first, then by lives lost
             const aLives = 2 - getLivesLost(a.username);
             const bLives = 2 - getLivesLost(b.username);
             return bLives - aLives;
@@ -3462,14 +2947,14 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
             const picks = survivorPicks[u.username] || {};
             const livesLost = getLivesLost(u.username);
             const alive = livesLost < 2;
-            // Jornada a mostrar: la seleccionada por admin, o la jornada actual (todayJornadaKey)
-            const jornadaToShow = viewJornada || todayJornadaKey;
-            const datesOfJornada = groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaToShow);
-            const shownPick = picks[jornadaToShow]
-              || datesOfJornada.map(d=>picks[d]).find(Boolean)
+            // Buscar pick de la jornada actual en cualquier key de fecha de la jornada
+            const todayPick = picks[todayJornadaKey]
+              || jornadaMatchDates.map(d=>picks[d]).find(Boolean)
+              || Object.entries(picks)
+                  .filter(([d,p]) => !p.result && (getJornadaKeyEarly(d)===todayJornadaKey || jornadaMatchDates.includes(d)))
+                  .map(([,p])=>p)[0]
               || null;
             const usedTeams = Object.values(picks).map(p=>p.team).filter(Boolean);
-            const labelSuffix = viewJornada ? `· jornada ${fmtD(viewJornada)}` : "hoy";
             return (
               <div key={u.username} style={{
                 display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
@@ -3484,32 +2969,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                 <div style={{flex:1}}>
                   <div style={{fontWeight:600,fontSize:15}}>{u.apodo||u.name}</div>
                   <div style={{fontSize:14,color:"#6B7A99",marginTop:2}}>
-                    {shownPick
-                      ? <span><FlagImg team={shownPick.team} size={14}/> {shownPick.team} {labelSuffix}
-                          {shownPick.result==="win" && <span style={{marginLeft:4,color:"var(--green)"}}>✅</span>}
-                          {shownPick.result==="nulo" && <span style={{marginLeft:4,color:"#6B7A99"}}>🟦</span>}
-                          {shownPick.failed && <span style={{marginLeft:4,color:"var(--red)"}}>💀</span>}
-                        </span>
-                      : <span style={{color:"#C41E3A"}}>Sin pick {labelSuffix}</span>}
+                    {todayPick
+                      ? <span><FlagImg team={todayPick.team} size={14}/> {todayPick.team} hoy</span>
+                      : <span style={{color:"#C41E3A"}}>Sin pick hoy</span>}
                     {usedTeams.length > 0 && <span style={{marginLeft:8}}>· Usados: {usedTeams.length} equipos</span>}
                   </div>
-                  {Object.keys(picks).length > 0 && (
-                    <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:4}}>
-                      {Object.entries(picks).sort(([a],[b])=>a>b?1:-1).map(([d,p]) => (
-                        <span key={d} style={{
-                          fontSize:12,padding:"2px 8px",borderRadius:6,fontWeight:600,
-                          background: p.result==="nulo"?"rgba(107,122,153,0.1)":p.failed?"rgba(232,64,64,0.12)":p.result==="win"?"rgba(0,168,107,0.12)":"rgba(107,122,153,0.1)",
-                          border:`1px solid ${p.result==="nulo"?"#6B7A99":p.failed?"var(--red)":p.result==="win"?"var(--green)":"var(--border)"}`,
-                          color: p.failed?"var(--red)":p.result==="win"?"var(--green)":"#1A1A2E"
-                        }}>
-                          {fmtD(d)}: {p.team==="Sin pick" ? "Sin pick" : <><FlagImg team={p.team} size={12}/> {p.team}</>}
-                          {p.result==="win" && " ✅"}
-                          {p.result==="nulo" && " 🟦"}
-                          {p.failed && " 💀"}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 <div style={{display:"flex",gap:3}}>
                   {[0,1].map(i=><span key={i} style={{fontSize:20}}>{i<(2-livesLost)?"❤️":"🖤"}</span>)}
@@ -3537,102 +3001,12 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
           <div style={{marginBottom:12,fontSize:14,color:"#6B7A99"}}>
             ⚠️ Día nulo: si TODOS los partidos de una jornada empatan, nadie pierde vida.
           </div>
-
-          {/* Panel ingreso manual de pick */}
-          {(()=>{
-            const jornadaParaManual = manualPickDate || viewJornada || todayJornadaKey;
-            const teamsForJornada = [...new Set(
-              ALL_MATCHES.filter(m => groupDates.filter(d=>getJornadaKeyEarly(d)===jornadaParaManual).includes(m.date))
-              .map(m => applyFase2Override(m, fase2Overrides))
-              .flatMap(m=>[m.home,m.away])
-            )].sort();
-            return (
-              <div style={{marginBottom:14,background:"rgba(27,79,158,0.06)",border:"1px solid rgba(27,79,158,0.3)",borderRadius:10,padding:"12px 14px"}}>
-                <div style={{fontWeight:700,fontSize:14,color:"#1B4F9E",marginBottom:8}}>✍️ Ingresar pick manualmente (para picks que no se guardaron en Supabase)</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                  <select value={manualPickDate || viewJornada || todayJornadaKey} onChange={e=>setManualPickDate(e.target.value)}
-                    style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff"}}>
-                    <option value="">-- Jornada --</option>
-                    {[...new Set(groupDates.map(d=>getJornadaKeyEarly(d)))].map(jk=>(
-                      <option key={jk} value={jk}>{fmtD(jk)}</option>
-                    ))}
-                  </select>
-                  <select value={manualUser} onChange={e=>setManualUser(e.target.value)}
-                    style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",minWidth:140}}>
-                    <option value="">-- Jugador --</option>
-                    {survivorUsers.map(u=><option key={u.username} value={u.username}>{u.apodo||u.name}</option>)}
-                  </select>
-                  <select value={manualTeam} onChange={e=>setManualTeam(e.target.value)}
-                    style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#fff",minWidth:140}}>
-                    <option value="">-- Equipo --</option>
-                    {teamsForJornada.map(t=><option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <button disabled={!manualUser||!manualTeam||!jornadaParaManual} onClick={async()=>{
-                    // Borrar pick previo si existe, luego insertar
-                  await sb.from("survivor_picks").delete()
-                    .eq("username",manualUser).eq("date",jornadaParaManual);
-                  const {error} = await sb.from("survivor_picks").insert({
-                    username:manualUser, date:jornadaParaManual, team:manualTeam,
-                    failed:false, result:null, match_id:jornadaParaManual
-                  });
-                    if (!error) {
-                      setSurvivorPicks(prev=>({...prev,[manualUser]:{...(prev[manualUser]||{}),[jornadaParaManual]:{team:manualTeam,failed:false,result:null}}}));
-                      setManualMsg(`✅ Pick de ${manualTeam} guardado para ${manualUser}`);
-                      setManualUser(""); setManualTeam("");
-                    } else {
-                      setManualMsg("❌ Error: "+error.message);
-                    }
-                    setTimeout(()=>setManualMsg(""),4000);
-                  }} style={{padding:"6px 14px",borderRadius:8,border:"1px solid #1B4F9E",
-                    background:(manualUser&&manualTeam&&jornadaParaManual)?"rgba(27,79,158,0.1)":"#eee",
-                    color:(manualUser&&manualTeam&&jornadaParaManual)?"#1B4F9E":"#aaa",
-                    fontFamily:"inherit",fontSize:13,fontWeight:700,cursor:"pointer"}}>
-                    💾 Guardar pick
-                  </button>
-                  {manualMsg && <span style={{fontSize:13,fontWeight:700,color:manualMsg.startsWith("✅")?"#2D8A3E":"#C41E3A"}}>{manualMsg}</span>}
-                </div>
-              </div>
-            );
-          })()}
-
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
-            <button onClick={()=>checkMissingPicks(viewJornada || todayJornadaKey)} style={{padding:"8px 16px",borderRadius:8,
-              border:"2px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
-              cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
-              🔍 Verificar picks faltantes de {fmtD(viewJornada || todayJornadaKey)} (quitar vida)
-            </button>
-            <button onClick={async()=>{
-              const jornadaRevert = viewJornada || todayJornadaKey;
-              if (!window.confirm(`¿Revertir eliminaciones automáticas de ${jornadaRevert}? Esto borrará todos los registros "Sin pick" de esa jornada y devolverá las vidas.`)) return;
-              const {error} = await sb.from("survivor_picks")
-                .delete()
-                .eq("date", jornadaRevert)
-                .eq("result","nopick");
-              if (!error) {
-                setSurvivorPicks(prev => {
-                  const np = {...prev};
-                  Object.keys(np).forEach(u => {
-                    if (np[u]?.[jornadaRevert]?.result === "nopick") {
-                      const upd = {...np[u]};
-                      delete upd[jornadaRevert];
-                      np[u] = upd;
-                    }
-                  });
-                  return np;
-                });
-                alert("✅ Eliminaciones revertidas para " + jornadaRevert);
-              } else {
-                alert("❌ Error: " + error.message);
-              }
-            }} style={{padding:"8px 16px",borderRadius:8,
-              border:"2px solid #2D8A3E",background:"rgba(45,138,62,0.08)",color:"#2D8A3E",
-              cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
-              ↩️ Revertir eliminaciones de {fmtD(viewJornada || todayJornadaKey)}
-            </button>
-          </div>
+          <button onClick={checkMissingPicks} style={{marginBottom:14,padding:"8px 16px",borderRadius:8,
+            border:"2px solid #C41E3A",background:"rgba(196,30,58,0.08)",color:"#C41E3A",
+            cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700}}>
+            🔍 Verificar picks faltantes (quitar vida automática)
+          </button>
           {groupDates.filter(date => {
-            // Si hay jornada seleccionada, mostrar solo esa jornada
-            if (viewJornada && getJornadaKeyEarly(date) !== viewJornada) return false;
             return survivorUsers.some(u => survivorPicks[u.username]?.[date]);
           }).map(date => (
             <div key={date} style={{marginBottom:14,background:"#F8F9FC",borderRadius:12,padding:"14px 16px",border:"1px solid var(--border)"}}>
@@ -3647,12 +3021,11 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     <span style={{fontSize:15,color:"#6B7A99",display:"flex",alignItems:"center",gap:4}}>
                       <FlagImg team={pick.team} size={16}/> {pick.team}
                     </span>
-                    <div style={{display:"flex",gap:6,marginLeft:"auto",flexWrap:"wrap"}}>
+                    <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
                       {[
                         {r:"win", label:"✅ Ganó", color:"#2D8A3E"},
                         {r:"draw", label:"➖ Empató", color:"#1B4F9E"},
                         {r:"loss", label:"❌ Perdió", color:"#C41E3A"},
-                        {r:"nulo", label:"🟦 Día nulo", color:"#6B7A99"},
                       ].map(({r,label,color}) => (
                         <button key={r} onClick={()=>markResult(u.username, date, r)} style={{
                           padding:"5px 10px",borderRadius:6,border:`1px solid ${color}`,
@@ -3664,7 +3037,6 @@ function SurvivorTab({currentUser, users, survivorPicks, setSurvivorPicks, survi
                     </div>
                     {pick.failed && <span style={{fontSize:14,color:"#C41E3A",fontWeight:700}}>💀 -1 vida</span>}
                     {pick.result==="win" && <span style={{fontSize:14,color:"#2D8A3E",fontWeight:700}}>✅ +0 vidas</span>}
-                    {pick.result==="nulo" && <span style={{fontSize:14,color:"#6B7A99",fontWeight:700}}>🟦 Día nulo · +0 vidas</span>}
                   </div>
                 );
               })}
