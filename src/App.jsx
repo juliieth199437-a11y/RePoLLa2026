@@ -455,7 +455,12 @@ export default function App() {
   const [fase2Overrides, setFase2Overrides] = useState({});
   // Pantalla de celebración final
   const [torneoFinalizado, setTorneoFinalizado] = useState(false);
-  const [ganadorSurvivor, setGanadorSurvivor] = useState(""); // username del ganador Survivor
+  const [ganadorSurvivor, setGanadorSurvivor] = useState("");
+  // Ganadores manuales de la RePoLLa (para manejar empates)
+  const [ganador1, setGanador1] = useState("");
+  const [ganador2a, setGanador2a] = useState("");
+  const [ganador2b, setGanador2b] = useState(""); // segundo puesto compartido (opcional)
+  const [ganador3, setGanador3] = useState(""); // username del ganador Survivor
 
   // testMode eliminado — modo producción real
 
@@ -712,7 +717,7 @@ export default function App() {
 
         // Cargar controles de bloqueo manual
         try {
-          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas","torneoFinalizado","ganadorSurvivor"]);
+          const { data: cfgAll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas","torneoFinalizado","ganadorSurvivor","ganador1","ganador2a","ganador2b","ganador3"]);
           if (cfgAll) {
             cfgAll.forEach(c => {
               if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
@@ -723,6 +728,10 @@ export default function App() {
               if (c.key==="survivorActiveJornadas") setSurvivorActiveJornadas(c.value ? c.value.split(",").filter(Boolean) : []);
               if (c.key==="torneoFinalizado") setTorneoFinalizado(c.value==="true");
               if (c.key==="ganadorSurvivor") setGanadorSurvivor(c.value||"");
+              if (c.key==="ganador1") setGanador1(c.value||"");
+              if (c.key==="ganador2a") setGanador2a(c.value||"");
+              if (c.key==="ganador2b") setGanador2b(c.value||"");
+              if (c.key==="ganador3") setGanador3(c.value||"");
             });
           }
         } catch(e) {}
@@ -757,7 +766,7 @@ export default function App() {
     // Polling cada 30s para que jugadores vean cambios de bloqueo del admin
     const pollInterval = setInterval(async () => {
       try {
-        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas","torneoFinalizado","ganadorSurvivor"]);
+        const { data: cfgPoll } = await sb.from("config").select("*").in("key",["blockedDates","openedDates","clasifBlocked","fase3Blocked","survivorBlockedDates","survivorActiveJornadas","torneoFinalizado","ganadorSurvivor","ganador1","ganador2a","ganador2b","ganador3"]);
         if (cfgPoll) {
           cfgPoll.forEach(c => {
             if (c.key==="blockedDates") setBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
@@ -767,6 +776,10 @@ export default function App() {
             if (c.key==="survivorBlockedDates") setSurvivorBlockedDates(c.value ? c.value.split(",").filter(Boolean) : []);
             if (c.key==="torneoFinalizado") setTorneoFinalizado(c.value==="true");
             if (c.key==="ganadorSurvivor") setGanadorSurvivor(c.value||"");
+            if (c.key==="ganador1") setGanador1(c.value||"");
+            if (c.key==="ganador2a") setGanador2a(c.value||"");
+            if (c.key==="ganador2b") setGanador2b(c.value||"");
+            if (c.key==="ganador3") setGanador3(c.value||"");
           });
         }
       } catch(e) {}
@@ -1059,7 +1072,7 @@ export default function App() {
         {tab==="bolsa" && <BolsaTab users={users} bolsa={bolsa} setBolsa={setBolsa} isAdmin={currentUser.isAdmin} />}
         {tab==="miperfil" && <MiPerfilTab currentUser={currentUser} updateUser={updateUser} />}
         {tab==="reglas" && <ReglasTab />}
-        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} openedDates={openedDates} setOpenedDates={setOpenedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} torneoFinalizado={torneoFinalizado} setTorneoFinalizado={setTorneoFinalizado} ganadorSurvivor={ganadorSurvivor} setGanadorSurvivor={setGanadorSurvivor} />}
+        {tab==="admin" && currentUser.isAdmin && <AdminTab results={results} saveResult={saveResult} groupResults={groupResults} saveGroupResult={saveGroupResult} finalResults={finalResults} saveFinalResult={saveFinalResult} users={users} addUser={addUser} getScore={getScore} predictions={predictions} groupPicks={groupPicks} finalPicks={finalPicks} setPredictions={setPredictions} setGroupPicks={setGroupPicks} setFinalPicks={setFinalPicks} setSurvivorPicks={setSurvivorPicks} setResetKey={setResetKey} setResults={setResults} setGroupResults={setGroupResults} setFinalResults={setFinalResults} setUsers={setUsers} blockedDates={blockedDates} setBlockedDates={setBlockedDates} openedDates={openedDates} setOpenedDates={setOpenedDates} clasifBlocked={clasifBlocked} setClasifBlocked={setClasifBlocked} fase3Blocked={fase3Blocked} setFase3Blocked={setFase3Blocked} fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} torneoFinalizado={torneoFinalizado} setTorneoFinalizado={setTorneoFinalizado} ganadorSurvivor={ganadorSurvivor} setGanadorSurvivor={setGanadorSurvivor} ganador1={ganador1} setGanador1={setGanador1} ganador2a={ganador2a} setGanador2a={setGanador2a} ganador2b={ganador2b} setGanador2b={setGanador2b} ganador3={ganador3} setGanador3={setGanador3} />}
         {tab==="armarfase2" && currentUser.isAdmin && <ArmarFase2Tab fase2Overrides={fase2Overrides} setFase2Overrides={setFase2Overrides} />}
       </div>
       {/* ══ CELEBRACIÓN FINAL — solo para jugadores (no admin), cuando el torneo termina ══ */}
@@ -1068,27 +1081,47 @@ export default function App() {
         leaderboard={leaderboard}
         users={users}
         ganadorSurvivor={ganadorSurvivor}
+        ganador1={ganador1}
+        ganador2a={ganador2a}
+        ganador2b={ganador2b}
+        ganador3={ganador3}
         onClose={()=>setTorneoFinalizado(false)}
       />}
     </div>
   );
 }
 
-function CelebracionFinal({currentUser, leaderboard, users, ganadorSurvivor, onClose}) {
-  const myRank = leaderboard.findIndex(u => u.username === currentUser.username) + 1;
+function CelebracionFinal({currentUser, leaderboard, users, ganadorSurvivor, ganador1, ganador2a, ganador2b, ganador3, onClose}) {
+  const me = currentUser.username;
   const survivorWinner = users.find(u => u.username === ganadorSurvivor);
-  const isSurvivorWinner = ganadorSurvivor && ganadorSurvivor === currentUser.username;
-  const medals = {1:"🥇",2:"🥈",3:"🥉"};
-  const colors = {1:"#FFD700",2:"#C0C0C0",3:"#CD7F32"};
-  const messages = {
-    1: "¡Campeón de la RePoLLa 2026! 🏆",
-    2: "¡Subcampeón de la RePoLLa! 🎉",
-    3: "¡Tercer lugar de la RePoLLa! 🎊",
-  };
+  const isSurvivorWinner = ganadorSurvivor && ganadorSurvivor === me;
+
+  // Determinar posición manual
+  let myRank = null;
+  let myMessage = null;
+  let myColor = null;
+  let myMedal = null;
+  if (ganador1 && me === ganador1) { myRank=1; myMedal="🥇"; myColor="#FFD700"; myMessage="¡Campeón de la RePoLLa 2026! 🏆"; }
+  else if ((ganador2a && me===ganador2a)||(ganador2b && me===ganador2b)) { myRank=2; myMedal="🥈"; myColor="#C0C0C0"; myMessage="¡Segundo lugar de la RePoLLa! 🎉"; }
+  else if (ganador3 && me===ganador3) { myRank=3; myMedal="🥉"; myColor="#CD7F32"; myMessage="¡Tercer lugar de la RePoLLa! 🎊"; }
+
+  // Si no hay ganadores manuales definidos, usar leaderboard automático como fallback
+  if (!ganador1 && !ganador2a && !ganador3) {
+    const pos = leaderboard.findIndex(u=>u.username===me)+1;
+    if (pos===1) { myRank=1; myMedal="🥇"; myColor="#FFD700"; myMessage="¡Campeón de la RePoLLa 2026! 🏆"; }
+    else if (pos===2) { myRank=2; myMedal="🥈"; myColor="#C0C0C0"; myMessage="¡Segundo lugar de la RePoLLa! 🎉"; }
+    else if (pos===3) { myRank=3; myMedal="🥉"; myColor="#CD7F32"; myMessage="¡Tercer lugar de la RePoLLa! 🎊"; }
+  }
+
+  // Nombres de los ganadores para mostrar a todos
+  const g1 = ganador1 ? users.find(u=>u.username===ganador1) : null;
+  const g2a = ganador2a ? users.find(u=>u.username===ganador2a) : null;
+  const g2b = ganador2b ? users.find(u=>u.username===ganador2b) : null;
+  const g3 = ganador3 ? users.find(u=>u.username===ganador3) : null;
+
   return (
     <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",
       background:"rgba(10,15,35,0.97)",overflow:"hidden",padding:"20px"}}>
-      {/* Confetti animado solo para el 1er lugar */}
       {myRank===1 && [...Array(40)].map((_,i)=>(
         <div key={i} style={{position:"absolute",width:10,height:10,borderRadius:"2px",
           background:["#FFD700","#FF6B35","#4ECDC4","#45B7D1","#96CEB4","#FFEAA7","#DDA0DD","#98D8C8"][i%8],
@@ -1101,42 +1134,50 @@ function CelebracionFinal({currentUser, leaderboard, users, ganadorSurvivor, onC
         @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
         @keyframes shine { 0%{opacity:.6} 50%{opacity:1} 100%{opacity:.6} }
       `}</style>
-      <div style={{textAlign:"center",maxWidth:480,width:"100%"}}>
-        {myRank <= 3 ? (
+      <div style={{textAlign:"center",maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+
+        {/* Mensaje personalizado según posición */}
+        {myRank ? (
           <>
-            <div style={{fontSize:90,animation:"pulse 1.5s ease-in-out infinite",marginBottom:8}}>{medals[myRank]}</div>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:42,color:colors[myRank],
-              textShadow:`0 0 30px ${colors[myRank]}`,animation:"shine 2s ease-in-out infinite",marginBottom:8}}>
-              {messages[myRank]}
+            <div style={{fontSize:80,animation:"pulse 1.5s ease-in-out infinite",marginBottom:6}}>{myMedal}</div>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:38,color:myColor,
+              textShadow:`0 0 30px ${myColor}`,animation:"shine 2s ease-in-out infinite",marginBottom:6}}>
+              {myMessage}
             </div>
-            <div style={{fontSize:20,color:"#fff",fontWeight:700,marginBottom:4}}>
+            <div style={{fontSize:20,color:"#fff",fontWeight:700,marginBottom:16}}>
               {currentUser.apodo || currentUser.name}
-            </div>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:colors[myRank],marginBottom:20}}>
-              {myRank}° lugar · {leaderboard[myRank-1]?.pts || 0} pts
             </div>
           </>
         ) : (
           <>
-            <div style={{fontSize:70,marginBottom:12}}>⚽</div>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:36,color:"#4ECDC4",marginBottom:8}}>
+            <div style={{fontSize:60,marginBottom:10}}>⚽</div>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:32,color:"#4ECDC4",marginBottom:6}}>
               ¡Gracias por jugar, {currentUser.apodo || currentUser.name}!
             </div>
-            <div style={{fontSize:16,color:"#B0B8CC",marginBottom:4}}>Terminaste en el puesto {myRank}</div>
-            <div style={{fontSize:15,color:"#6B7A99",marginBottom:20}}>Nos vemos en el próximo Mundial 🌍</div>
+            <div style={{fontSize:15,color:"#6B7A99",marginBottom:16}}>Nos vemos en el próximo Mundial 2030 🌍</div>
           </>
         )}
-        {ganadorSurvivor && (
-          <div style={{background:"linear-gradient(135deg,#FF6B35,#FFD700)",borderRadius:16,padding:"14px 20px",marginBottom:20,
-            boxShadow:"0 0 30px rgba(255,107,53,0.5)"}}>
-            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:22,color:"#1A1A2E",marginBottom:2}}>
-              🔥 GANADOR SURVIVOR 🔥
-            </div>
-            <div style={{fontSize:18,color:"#1A1A2E",fontWeight:700}}>
-              {isSurvivorWinner ? "¡ERES TÚ! 🎉" : (survivorWinner?.apodo || survivorWinner?.name || ganadorSurvivor)}
+
+        {/* Podio de la RePoLLa — visible para todos */}
+        {(g1||g2a||g3) && (
+          <div style={{background:"rgba(255,255,255,0.06)",borderRadius:14,padding:"14px 18px",marginBottom:14,textAlign:"left"}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#fff",marginBottom:8,textAlign:"center",letterSpacing:2}}>🏆 PODIO REPOLLA 2026</div>
+            {g1 && <div style={{fontSize:16,color:"#FFD700",fontWeight:700,marginBottom:4}}>🥇 {g1.apodo||g1.name}</div>}
+            {g2a && <div style={{fontSize:15,color:"#C0C0C0",fontWeight:700,marginBottom:2}}>🥈 {g2a.apodo||g2a.name}{g2b ? " · "+( g2b.apodo||g2b.name) : ""}</div>}
+            {g3 && <div style={{fontSize:15,color:"#CD7F32",fontWeight:700,marginBottom:2}}>🥉 {g3.apodo||g3.name}</div>}
+          </div>
+        )}
+
+        {/* Ganador Survivor */}
+        {ganadorSurvivor && survivorWinner && (
+          <div style={{background:"linear-gradient(135deg,#FF6B35,#FFD700)",borderRadius:14,padding:"12px 18px",marginBottom:14}}>
+            <div style={{fontFamily:"'Bebas Neue',cursive",fontSize:18,color:"#1A1A2E",marginBottom:2}}>🔥 GANADOR SURVIVOR 🔥</div>
+            <div style={{fontSize:17,color:"#1A1A2E",fontWeight:700}}>
+              {isSurvivorWinner ? "¡ERES TÚ! 🎉" : (survivorWinner.apodo||survivorWinner.name)}
             </div>
           </div>
         )}
+
         <button onClick={onClose} style={{padding:"12px 32px",background:"rgba(255,255,255,0.15)",
           border:"1px solid rgba(255,255,255,0.3)",color:"#fff",borderRadius:12,fontSize:16,cursor:"pointer",fontFamily:"inherit"}}>
           Ver ranking completo
@@ -2288,7 +2329,7 @@ function ArmarFase2Tab({fase2Overrides, setFase2Overrides}) {
 // ============================================================
 // ADMIN TAB
 // ============================================================
-function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, openedDates, setOpenedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked, fase2Overrides, setFase2Overrides, torneoFinalizado=false, setTorneoFinalizado, ganadorSurvivor="", setGanadorSurvivor}) {
+function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResults, saveFinalResult, users, addUser, getScore, predictions, groupPicks, finalPicks, setPredictions, setGroupPicks, setFinalPicks, setSurvivorPicks, setResetKey, setResults, setGroupResults, setFinalResults, setUsers, blockedDates, setBlockedDates, openedDates, setOpenedDates, clasifBlocked, setClasifBlocked, fase3Blocked, setFase3Blocked, fase2Overrides, setFase2Overrides, torneoFinalizado=false, setTorneoFinalizado, ganadorSurvivor="", setGanadorSurvivor, ganador1="", setGanador1, ganador2a="", setGanador2a, ganador2b="", setGanador2b, ganador3="", setGanador3}) {
   const [matchPhase, setMatchPhase]=useState("grupos");
   const [fechaFiltro, setFechaFiltro]=useState("");
   const fechasGrupos=[...new Set(GROUP_MATCHES.map(m=>m.date))].sort();
@@ -2807,6 +2848,38 @@ function AdminTab({results, saveResult, groupResults, saveGroupResult, finalResu
             <div style={{marginTop:12,padding:"14px 16px",background:"linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,107,53,0.1))",
               borderRadius:12,border:"2px solid rgba(255,215,0,0.4)"}}>
               <div style={{fontSize:13,fontWeight:700,color:"#1A1A2E",marginBottom:10}}>🎉 Pantalla de celebración final</div>
+
+              {/* Ganadores manuales de la RePoLLa */}
+              {[
+                {label:"🥇 1er puesto RePoLLa:", val:ganador1, set:setGanador1, key:"ganador1"},
+                {label:"🥈 2do puesto (A):", val:ganador2a, set:setGanador2a, key:"ganador2a"},
+                {label:"🥈 2do puesto (B — empate):", val:ganador2b, set:setGanador2b, key:"ganador2b"},
+                {label:"🥉 3er puesto RePoLLa:", val:ganador3, set:setGanador3, key:"ganador3"},
+              ].map(({label, val, set, key})=>(
+                <div key={key} style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
+                  <span style={{fontSize:13,minWidth:200}}>{label}</span>
+                  <select value={val} onChange={e=>set(e.target.value)}
+                    style={{padding:"6px 10px",borderRadius:8,border:"1px solid var(--border)",fontFamily:"inherit",fontSize:13,background:"#F8F9FC",color:"#1A1A2E"}}>
+                    <option value="">-- Ninguno --</option>
+                    {users.filter(u=>!u.isAdmin).map(u=>(
+                      <option key={u.username} value={u.username}>{u.apodo||u.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+              <button onClick={async()=>{
+                await Promise.all([
+                  saveConfig("ganador1", ganador1),
+                  saveConfig("ganador2a", ganador2a),
+                  saveConfig("ganador2b", ganador2b),
+                  saveConfig("ganador3", ganador3),
+                ]);
+                setSurvivorSaved(true);
+                setTimeout(()=>setSurvivorSaved(false), 2500);
+              }} style={{padding:"6px 16px",borderRadius:8,border:"none",fontSize:13,fontWeight:700,cursor:"pointer",background:"#1B4F9E",color:"#fff",marginBottom:10}}>
+                Guardar ganadores RePoLLa
+              </button>
+              {survivorSaved && <span style={{fontSize:13,color:"#2D8A3E",fontWeight:700,marginLeft:8}}>✅ Guardado</span>}
               <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginBottom:10}}>
                 <span style={{fontSize:13}}>Torneo finalizado:</span>
                 <button onClick={async()=>{
